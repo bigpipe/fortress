@@ -36,7 +36,7 @@ latest stable tag. But if you are feeling adventures, you can also try the
 
 ## Quick start
 
-```
+```js
 'use strict';
 
 //
