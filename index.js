@@ -53,13 +53,15 @@ function iframe(el, id) {
  * @param {Element} mount The element we should attach to.
  * @param {String} id A unique id for this container.
  * @param {String} code The actual that needs to run within the sandbox.
+ * @param {Object} options Container configuration.
  * @api private
  */
-function Container(mount, id, code) {
+function Container(mount, id, code, options) {
   this.created = new Date();      // Creation date.
   this.mount = mount;             // Mount point of the container.
   this.id = id;                   // Unique id
   this.i = iframe(mount, id);     // The generated iframe.
+  this.output = [];               // Historic console.* output.
 
   //
   // Optional code to load in the container and start it directly
@@ -69,6 +71,25 @@ function Container(mount, id, code) {
     this.start();
   }
 }
+
+/**
+ * Store console.x output from Image.
+ *
+ * @param {String} method The console[method] name.
+ * @param {Array} args The arguments used to call the method.
+ * @api private
+ */
+Container.prototype.console = function consolas(method, args) {
+  this.output.push({
+    epoch: +new Date(),
+    method: method,
+    args: args
+  });
+
+  //
+  // @TODO stream this output when we're attached.
+  //
+};
 
 /**
  * Bind, without the .bind. This ensures that callbacks and functions are called
