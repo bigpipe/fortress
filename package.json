@@ -18,5 +18,12 @@
     "restrict"
   ],
   "author": "Arnout Kazemier",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/3rd-Eden/fortress.git"
+  },
+  "devDependencies": {
+    "pre-commit": "0.0.4"
+  }
 }

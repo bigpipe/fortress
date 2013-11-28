@@ -71,12 +71,38 @@ function Container(mount, id, code) {
 }
 
 /**
+ * Bind, without the .bind. This ensures that callbacks and functions are called
+ * with the correct context.
+ *
+ * @param {Function} method The method that we should bind to.
+ * @param {Mixed} context The context of the method, default to `this`
+ * @returns {Function} Function that calls the method with the given context.
+ * @api private
+ */
+Container.prototype.bound = function bound(method, context) {
+  method = method || function noop() {};  // default to noop.
+  context = context || this;              // default to `this`.
+
+  return function binded() {
+    method.apply(context, arguments);
+  };
+};
+
+/**
  * Start the container.
  *
  * @returns {Container}
- * @api private
+ * @api public
  */
 Container.prototype.start = function start() {
+  //
+  // Attach various event listeners so we can update the state of the container.
+  // We don't need to use `.addEventLister` as we only want and require one
+  // single event listener.
+  //
+  this.i.frame.onerror = this.bound(this.onerror);
+  this.i.frame.onload = this.bound(this.onload);
+
   //
   // If the container is already in the HTML we're going to assume that we still
   // have to load it with the Image. But if it's not in the mount point (DOM) we
@@ -107,6 +133,8 @@ Container.prototype.stop = function stop() {
   if (!this.mount.getElementById(this.id)) return this;
 
   this.mount.removeChild(this.i.frame);
+  this.i.frame.onerror = this.i.frame.onload = null;
+
   return this;
 };
 
