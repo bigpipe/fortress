@@ -1,5 +1,7 @@
 # Fortress
 
+![fortress](https://raw.github.com/3rd-Eden/fortress/master/fo%CC%88rt.jpg)
+
 Fortress is the Docker for front-end applications. It allows you to your code in
 a controlled and sandboxed environment. This library was originally designed for
 my [bigpipe] project which assumes that your front-end is split up in different
