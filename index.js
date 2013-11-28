@@ -138,7 +138,7 @@ Container.prototype.start = function start() {
     var doc = this.i.document;
 
     doc.open();
-    doc.write('<html><s'+'cript>'+ this.image +'</s'+'cript></html>');
+    doc.write('<!doctype html><html><p><s'+'cript>'+ this.image +'</s'+'cript></p></html>');
     doc.close();
   }
 
@@ -164,6 +164,9 @@ Container.prototype.stop = function stop() {
   this.i.window[this.id] = null;
   this.mount.removeChild(this.i.frame);
 
+  //
+  // Known to throw errors in certain situations (IE)
+  //
   try { this.i.frame.onload = null; }
   catch (e) {}
 
@@ -249,8 +252,30 @@ Image.prototype.patch = function patch() {
  * @returns {String} Boilerplate code.
  * @api private
  */
-Image.prototype.console = function console() {
-  return '';
+Image.prototype.consolas = function consolas() {
+  return [
+    '(function (o, c, m) {',
+      'o.console = {};',
+      'var fn = o["'+ this.id +'"];',
+
+      'for (var i = 0; i < m.length; i++) (function (y) {',
+        //
+        // Ensure that this host environment always has working console.
+        //
+        'o.console[y] = function () {',
+          'var a = Array.prototype.slice.call(arguments, 0);',
+          //
+          // If the host supports this given method natively, execute it.
+          //
+          'if (y in c) c[m].apply(c[m], a);',
+
+          // @TODO make sure it calls the .console method of the container with
+          // the method name and arguments in order to proxy it to the parent
+          // iframe.
+        '};',
+      '}(m[i]));',
+    '}(this, typeof console !== "undefined" ? console : {}, ["debug","error","info","log","warn","dir","dirxml","table","trace","assert","count","markTimeline","profile","profileEnd","time","timeEnd","timeStamp","timeline","timelineEnd","group","groupCollapsed","groupEnd","clear"]));'
+  ].join('\n');
 };
 
 /**
@@ -286,8 +311,8 @@ Image.prototype.toString = function toString() {
     // Add the custom boiler plate code.
     //
     this.patch(),
-    this.console(),
     this.storage(),
+    this.consolas(),
 
     //
     // All boilerplate code has been loaded, execute the actual code. After
