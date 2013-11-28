@@ -246,6 +246,7 @@ Image.prototype.toString = function toString() {
  * @api private
  */
 function Fortress(options) {
+  if (!(this instanceof Fortress)) return new Fortress(options);
   options = options || {};
 
   var scripts = document.getElementsByTagName('script');
@@ -324,19 +325,19 @@ Fortress.prototype.id = function id() {
  * Create a new container.
  *
  * @param {String} code
+ * @param {Object} options Options for the container
  * @returns {Container}
  * @api public
  */
-Fortress.prototype.create = function create(code) {
-  var container = new Container(this.mount, this.id(), code);
+Fortress.prototype.create = function create(code, options) {
+  var container = new Container(this.mount, this.id(), code, options);
   this.containers[container.id] = container;
 
   return container;
 };
 
 /**
- * Inspect a running Container in order to get more detailed information about
- * the process.
+ * Get a container based on it's unique id.
  *
  * @param {String} id The container id.
  * @returns {Container}
@@ -430,3 +431,9 @@ Fortress.prototype.kill = function kill(id) {
 Fortress.prototype.attach = function attach(id) {
   return this;
 };
+
+//
+// Expose the module using a commonjs pattern, if people roll like that.
+//
+try { module.exports = Fortress; }
+catch (e) {}

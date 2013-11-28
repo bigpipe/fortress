@@ -4,7 +4,8 @@
   "description": "Fortress is designed for the defense of client side applications.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "zuul -- test.js",
+    "local": "zuul --local 1337 -- test.js"
   },
   "keywords": [
     "sandbox",
@@ -24,6 +25,8 @@
     "url": "git://github.com/3rd-Eden/fortress.git"
   },
   "devDependencies": {
-    "pre-commit": "0.0.4"
+    "pre-commit": "0.0.4",
+    "mocha": "~1.14.0",
+    "zuul": "~1.0.4"
   }
 }
