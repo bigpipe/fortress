@@ -24,4 +24,23 @@ describe('fortress', function () {
 
     assert.ok(fort instanceof Fortress, 'should be an instance of Fortress');
   });
+
+  describe('#all', function () {
+    it('returns an empty array', function () {
+      var fort = new Fortress()
+        , all = fort.all();
+
+      assert.equal(all.length, 0, 'no length as we have no containers');
+    });
+
+    it('returns array with container instances', function () {
+      var fort = new Fortress()
+        , container = fort.create()
+        , all = fort.all();
+
+      assert.ok(container instanceof Fortress.Container);
+      assert.equal(all.length, 1, 'we only created 1 container');
+      assert.equal(all[0], container, 'fort.create returns container');
+    });
+  });
 });
