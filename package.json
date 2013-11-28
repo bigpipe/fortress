@@ -1,0 +1,22 @@
+{
+  "name": "fortress",
+  "version": "0.0.0",
+  "description": "Fortress is designed for the defense of client side applications.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "sandbox",
+    "fort",
+    "fortress",
+    "container",
+    "iframe",
+    "security",
+    "jail",
+    "sandboxed",
+    "restrict"
+  ],
+  "author": "Arnout Kazemier",
+  "license": "MIT"
+}
