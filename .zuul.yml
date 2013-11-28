@@ -1,5 +1,5 @@
 name: fortress
-ui: mocha-qunit
+ui: mocha-bdd
 browsers:
   - name: chrome
     version: latest
