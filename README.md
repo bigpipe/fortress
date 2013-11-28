@@ -1,5 +1,3 @@
-# Fortress
-
 ![fortress](https://raw.github.com/3rd-Eden/fortress/master/fo%CC%88rt.jpg)
 
 Fortress is the Docker for front-end applications. It allows you to your code in
