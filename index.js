@@ -1,5 +1,7 @@
 'use strict';
 
+var slice = Array.prototype.slice;
+
 /**
  * Create a new pre-configured iframe.
  *
@@ -104,8 +106,10 @@ Container.prototype.bound = function bound(method, context) {
   method = method || function noop() {};  // default to noop.
   context = context || this;              // default to `this`.
 
+  var args = slice.call(arguments, 2);
+
   return function binded() {
-    method.apply(context, arguments);
+    method.apply(context, args.concat(slice.call(arguments, 0)));
   };
 };
 
