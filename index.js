@@ -68,10 +68,7 @@ function Container(mount, id, code, options) {
   //
   // Optional code to load in the container and start it directly
   //
-  if (code) {
-    this.image = new Image(code);
-    this.start();
-  }
+  if (code) this.load().start();
 }
 
 /**
@@ -145,6 +142,13 @@ Container.prototype.start = function start() {
     doc.close();
   }
 
+  //
+  // Introduce a custom variable in to the iframe that exposes our Container as
+  // API. The Image can use this to communicate with the container and pass
+  // messages back and forth.
+  //
+  this.i.window[this.id] = this;
+
   return this;
 };
 
@@ -157,8 +161,14 @@ Container.prototype.start = function start() {
 Container.prototype.stop = function stop() {
   if (!this.mount.getElementById(this.id)) return this;
 
+  this.i.window[this.id] = null;
   this.mount.removeChild(this.i.frame);
-  this.i.frame.onerror = this.i.frame.onload = null;
+
+  try { this.i.frame.onload = null; }
+  catch (e) {}
+
+  try { this.i.frame.onerror = null; }
+  catch (e) {}
 
   return this;
 };
@@ -171,7 +181,7 @@ Container.prototype.stop = function stop() {
  * @api public
  */
 Container.prototype.load = function load(code) {
-  this.image = new Image(code);
+  this.image = new Image(this.id, code);
 
   return this;
 };
@@ -187,7 +197,7 @@ Container.prototype.destroy = function destroy() {
   this.stop();
 
   //
-  // Remove all possible references.
+  // Remove all possible references to release as much memory as possible.
   //
   this.mount = this.image = this.id = this.i = this.created = null;
 
@@ -198,12 +208,13 @@ Container.prototype.destroy = function destroy() {
  * The Image that is loaded on to the container.
  *
  * @constructor
+ * @param {String} id The id of the container.
  * @param {String} source The actual code.
  * @api private
  */
-function Image(source) {
-  this.original = source;
+function Image(id, source) {
   this.source = source;
+  this.id = id;
 }
 
 /**
@@ -212,6 +223,7 @@ function Image(source) {
  * to make sure that the iframe points to the same domain as our host page in
  * order cross origin based requests to work correctly.
  *
+ * @returns {String} Boilerplate code.
  * @api private
  */
 Image.prototype.patch = function patch() {
@@ -234,10 +246,11 @@ Image.prototype.patch = function patch() {
  * Override the build-in console.log so we can transport the logging messages to
  * the actual page.
  *
+ * @returns {String} Boilerplate code.
  * @api private
  */
 Image.prototype.console = function console() {
-  return;
+  return '';
 };
 
 /**
@@ -246,10 +259,11 @@ Image.prototype.console = function console() {
  * and session storage.
  *
  * @param {Number} size The total storage this has.
+ * @returns {String} Boilerplate code.
  * @api private
  */
 Image.prototype.storage = function storage(size) {
-
+  return '';
 };
 
 /**
@@ -260,7 +274,28 @@ Image.prototype.storage = function storage(size) {
  * @api private
  */
 Image.prototype.toString = function toString() {
-  return this.source;
+  return [
+    //
+    // Wrap the source in a `fort()` function so we can delay the execution
+    // while maintaining accurate line numbers by adding our own boiler plate
+    // code after the fort() function.
+    //
+    'function fort() {'+ this.source +'}',
+
+    //
+    // Add the custom boiler plate code.
+    //
+    this.patch(),
+    this.console(),
+    this.storage(),
+
+    //
+    // All boilerplate code has been loaded, execute the actual code. After
+    // a slight delay so we update the window with a reference to our own
+    // container.
+    //
+    'setTimeout(fort, 0);'
+  ].join('\n');
 };
 
 /**
@@ -456,6 +491,12 @@ Fortress.prototype.kill = function kill(id) {
 Fortress.prototype.attach = function attach(id) {
   return this;
 };
+
+//
+// Expose our Container and Image so it can be extended by third party.
+//
+Fortress.Container = Container;
+Fortress.Image = Image;
 
 //
 // Expose the module using a commonjs pattern, if people roll like that.
