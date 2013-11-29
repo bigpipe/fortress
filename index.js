@@ -274,7 +274,7 @@ Image.prototype.consolas = function consolas() {
           // iframe.
         '};',
       '}(m[i]));',
-    '}(this, typeof console !== "undefined" ? console : {}, ["debug","error","info","log","warn","dir","dirxml","table","trace","assert","count","markTimeline","profile","profileEnd","time","timeEnd","timeStamp","timeline","timelineEnd","group","groupCollapsed","groupEnd","clear"]));'
+    '}(this, typeof console !== "undefined" ? console : {}, ["debug","error","info","log","warn","dir","dirxml","table","trace","assert","count","markTimeline","profile","profileEnd","time","timeEnd","timeStamp","timeline","timelineEnd","group","groupCollapsed","groupEnd","clear", "select"]));'
   ].join('\n');
 };
 
@@ -396,13 +396,13 @@ Fortress.prototype.id = function id() {
     generated.push(Math.random().toString(36).substring(2));
   }
 
-  generated = generated.join('_');
+  generated = 'fortress_'+ generated.join('_');
 
   //
   // Ensure that we didn't generate a pre-existing id, if we did, generate
   // another id.
   //
-  if (generated in this.containers) return id();
+  if (generated in this.containers) return this.id();
   return generated;
 };
 
