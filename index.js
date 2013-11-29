@@ -147,10 +147,6 @@ Container.prototype.bound = function bound(method, context) {
   };
 };
 
-Container.prototype.onerror = function () {
-  console.error('container.error', arguments)
-};
-
 /**
  * Start the container.
  *
