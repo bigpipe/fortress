@@ -4,7 +4,11 @@
 var Fortress = require('./index.js')
   , assert = require('assert');
 
-describe('fortress', function () {
+describe('Fortress', function () {
+  it('is a function', function () {
+    assert.equal(typeof Fortress, 'function');
+  });
+
   it('exposes the Container', function () {
     assert.equal(typeof Fortress.Container, 'function');
   });
@@ -17,6 +21,8 @@ describe('fortress', function () {
     var fort = new Fortress();
 
     assert.ok(fort instanceof Fortress);
+
+    fort.destroy();
   });
 
   it('should create a new fortress instance if its not created using new', function () {
@@ -24,6 +30,8 @@ describe('fortress', function () {
       , fort = fortress();
 
     assert.ok(fort instanceof Fortress, 'should be an instance of Fortress');
+
+    fort.destroy();
   });
 
   describe('#id', function () {
@@ -38,6 +46,8 @@ describe('fortress', function () {
         var x = new Function('var '+ fort.id() + ' = 10; return 0;');
         assert.equal(x(), 0, 'should return the compiled functions result');
       }
+
+      fort.destroy();
     });
 
     it('should generate unique ids', function () {
@@ -50,6 +60,8 @@ describe('fortress', function () {
         assert.ok(!(id in ids), 'id should be unique');
         ids[id] = 1;
       }
+
+      fort.destroy();
     });
   });
 
@@ -58,6 +70,8 @@ describe('fortress', function () {
       var fort = new Fortress();
 
       assert.equal(fort.get('foo'), undefined, 'This does not exist');
+
+      fort.destroy();
     });
 
     it('returns the container when given the correct id', function () {
@@ -66,6 +80,30 @@ describe('fortress', function () {
 
       assert.ok(container instanceof Fortress.Container);
       assert.ok(container === fort.get(container.id));
+
+      fort.destroy();
+    });
+  });
+
+  describe('#globals', function () {
+    it('detects the introduced `foo` global', function () {
+      var fort = new Fortress()
+        , current = fort.globals();
+
+      assert.ok(current.length > 0, 'We should have introduced atleast one global');
+
+      window.foo = 'bar';
+
+      var introduced = fort.globals();
+
+      assert.equal(introduced.length, 1, 'the foo variable');
+      assert.equal(introduced[0], 'foo', 'the foo variable');
+
+      // Remove global.
+      try { delete window.foo; }
+      catch (e) {}
+
+      fort.destroy();
     });
   });
 
@@ -75,6 +113,8 @@ describe('fortress', function () {
         , all = fort.all();
 
       assert.equal(all.length, 0, 'no length as we have no containers');
+
+      fort.destroy();
     });
 
     it('returns array with container instances', function () {
@@ -85,6 +125,16 @@ describe('fortress', function () {
       assert.ok(container instanceof Fortress.Container);
       assert.equal(all.length, 1, 'we only created 1 container');
       assert.equal(all[0], container, 'fort.create returns container');
+
+      fort.destroy();
+    });
+  });
+
+  describe('#create', function () {
+    describe('with code', function () {
+      var fort = new Fortress();
+
+      fort.destroy();
     });
   });
 });

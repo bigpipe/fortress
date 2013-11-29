@@ -59,17 +59,32 @@ function iframe(el, id) {
  * @api private
  */
 function Container(mount, id, code, options) {
-  this.created = new Date();      // Creation date.
-  this.mount = mount;             // Mount point of the container.
-  this.id = id;                   // Unique id
   this.i = iframe(mount, id);     // The generated iframe.
+  this.mount = mount;             // Mount point of the container.
   this.output = [];               // Historic console.* output.
+  this.id = id;                   // Unique id.
+
+  this.created = +new Date();     // Creation EPOCH.
+  this.started = null;            // Start EPOCH.
 
   //
-  // Optional code to load in the container and start it directly
+  // Optional code to load in the container and start it directly.
   //
   if (code) this.load().start();
 }
+
+/**
+ * Inspect the container to get some useful statistics about it and it's health.
+ *
+ * @returns {Object}
+ * @api public
+ */
+Container.prototype.inspect = function inspect() {
+  return {
+    uptime: +new Date() - this.started,
+    running: !!document.getElementById(this.id)
+  };
+};
 
 /**
  * Store console.x output from Image.
@@ -78,16 +93,38 @@ function Container(mount, id, code, options) {
  * @param {Array} args The arguments used to call the method.
  * @api private
  */
-Container.prototype.console = function consolas(method, args) {
-  this.output.push({
-    epoch: +new Date(),
-    method: method,
-    args: args
-  });
+/**
+ * Parse and process incoming messages from the iframe. The incoming messages
+ * should be objects that have a `type` property.
+ *
+ * @param {Object} packet The incoming message.
+ * @returns {Boolean} Message was handled y/n.
+ * @api private
+ */
+Container.prototype.onmessage = function onmessage(packet) {
+  if ('object' !== typeof packet) return false;
 
-  //
-  // @TODO stream this output when we're attached.
-  //
+  switch (packet.type) {
+    //
+    // The code in the iframe used the `console` method.
+    // @TODO stream this output when we're attached.
+    //
+    case 'console':
+      this.output.push({
+        method: packet.method,
+        epoch: +new Date(),
+        args: packet.args
+      });
+    break;
+
+    //
+    // Handle unknown package types by just returning false.
+    //
+    default:
+      return false;
+  }
+
+  return true;
 };
 
 /**
@@ -132,7 +169,7 @@ Container.prototype.start = function start() {
   // but when we re-add it to the mount point, it will automatically restart the
   // JavaScript that was originally loaded in the container.
   //
-  if (!this.mount.getElementById(this.id)) {
+  if (!document.getElementById(this.id)) {
     this.mount.appendChild(this.i.frame);
   } else {
     var doc = this.i.document;
@@ -147,7 +184,8 @@ Container.prototype.start = function start() {
   // API. The Image can use this to communicate with the container and pass
   // messages back and forth.
   //
-  this.i.window[this.id] = this;
+  this.i.window[this.id] = this.bound(this.onmessage);
+  this.started = +new Date();
 
   return this;
 };
@@ -159,7 +197,7 @@ Container.prototype.start = function start() {
  * @api private
  */
 Container.prototype.stop = function stop() {
-  if (!this.mount.getElementById(this.id)) return this;
+  if (!document.getElementById(this.id)) return this;
 
   this.i.window[this.id] = null;
   this.mount.removeChild(this.i.frame);
@@ -334,11 +372,20 @@ function Fortress(options) {
   if (!(this instanceof Fortress)) return new Fortress(options);
   options = options || {};
 
-  var scripts = document.getElementsByTagName('script');
+  //
+  // Create a small dedicated container that houses all our iframes. This might
+  // add an extra DOM node to the page in addition to each iframe but it will
+  // ultimately result in a cleaner DOM as everything is nicely tucked away.
+  //
+  var scripts = document.getElementsByTagName('script')
+    , append = scripts[scripts.length - 1] || document.body
+    , div = document.createElement('div');
+
+  append.parentNode.insertBefore(div, append);
 
   this.global = (function () { return this; })() || window;
-  this.mount = scripts[scripts.length - 1] || document.body;
   this.containers = {};
+  this.mount = div;
 
   scripts = null;
 }
@@ -352,10 +399,11 @@ catch (e) {}
  * Detect the current globals that are loaded in to this page. This way we can
  * see if we are leaking data.
  *
+ * @param {Array} old Optional array with previous or known leaks.
  * @returns {Array} Names of the leaked globals.
  * @api private
  */
-Fortress.prototype.globals = function globals() {
+Fortress.prototype.globals = function globals(old) {
   var i = iframe(this.mount, Date.now())
     , global = this.global;
 
@@ -365,7 +413,18 @@ Fortress.prototype.globals = function globals() {
   // Detect the globals and return them.
   //
   return Object.keys(global).filter(function filter(key) {
-    return !(key in i.window);
+    var introduced = !(key in i.window);
+
+    //
+    // We've been given an array, so we should use that as the source of previous
+    // and acknowledged leaks and only return an array that contains newly
+    // introduced leaks.
+    //
+    if (introduced && old && old.length) return ~old.indexOf(introduced)
+      ? false
+      : true;
+
+    return introduced;
   });
 };
 
@@ -515,6 +574,21 @@ Fortress.prototype.kill = function kill(id) {
  */
 Fortress.prototype.attach = function attach(id) {
   return this;
+};
+
+/**
+ * Destroy all active containers and clean up all references. We expect no more
+ * further calls to this Fortress instance.
+ *
+ * @api public
+ */
+Fortress.prototype.destroy = function destroy() {
+  for (var id in this.containers) {
+    this.kill(id);
+  }
+
+  this.mount.parentNode.removeChild(this.mount);
+  this.global = this.mount = this.containers = null;
 };
 
 //
