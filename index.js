@@ -70,7 +70,7 @@ function Container(mount, id, code, options) {
   //
   // Optional code to load in the container and start it directly.
   //
-  if (code) this.load().start();
+  if (code) this.load(code).start();
 }
 
 /**
@@ -147,6 +147,10 @@ Container.prototype.bound = function bound(method, context) {
   };
 };
 
+Container.prototype.onerror = function () {
+  console.error('container.error', arguments)
+};
+
 /**
  * Start the container.
  *
@@ -175,7 +179,7 @@ Container.prototype.start = function start() {
     var doc = this.i.document;
 
     doc.open();
-    doc.write('<!doctype html><html><p><s'+'cript>'+ this.image +'</s'+'cript></p></html>');
+    doc.write('<!doctype html><html><s'+'cript>'+ this.image +'</s'+'cript></html>');
     doc.close();
   }
 
@@ -273,6 +277,12 @@ Image.prototype.patch = function patch() {
     // Force the same domain as our "root" script.
     //
     'document.domain="'+ document.domain +'";',
+
+    //
+    // Prevent common iframe detection scripts that do frame busting.
+    //
+    'top = self = parent = window;',
+
     '(function (o, h) {',
 
     //
@@ -294,8 +304,6 @@ Image.prototype.consolas = function consolas() {
   return [
     '(function (o, c, m) {',
       'o.console = {};',
-      'var fn = o["'+ this.id +'"];',
-
       'for (var i = 0; i < m.length; i++) (function (y) {',
         //
         // Ensure that this host environment always has working console.
@@ -305,11 +313,12 @@ Image.prototype.consolas = function consolas() {
           //
           // If the host supports this given method natively, execute it.
           //
-          'if (y in c) c[m].apply(c[m], a);',
+          'if (y in c) c[y].apply(c, a);',
 
-          // @TODO make sure it calls the .console method of the container with
-          // the method name and arguments in order to proxy it to the parent
-          // iframe.
+          //
+          // Proxy messages to the container.
+          //
+          this.id +'({ type: "console", method: y, args: a });',
         '};',
       '}(m[i]));',
     '}(this, typeof console !== "undefined" ? console : {}, ["debug","error","info","log","warn","dir","dirxml","table","trace","assert","count","markTimeline","profile","profileEnd","time","timeEnd","timeStamp","timeline","timelineEnd","group","groupCollapsed","groupEnd","clear", "select"]));'

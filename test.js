@@ -131,10 +131,19 @@ describe('Fortress', function () {
   });
 
   describe('#create', function () {
-    describe('with code', function () {
-      var fort = new Fortress();
+    var fixture = {
+      console: 'console.log("foo")'
+    };
 
-      fort.destroy();
+    describe('with code', function () {
+      it('runs our console code', function () {
+        var fort = new Fortress()
+          , container = fort.create(fixture.console);
+
+        console.log(container);
+
+        // fort.destroy();
+      });
     });
   });
 });
