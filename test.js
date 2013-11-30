@@ -132,7 +132,10 @@ describe('Fortress', function () {
 
   describe('#create', function () {
     var fixture = {
-      console: 'console.log("foo")'
+        console: 'console.log("foo"); throw new Error("foo")'
+      , blocking: 'alert("foo"); confirm("bar"); prompt("baz");'
+      , throws: 'throw new Error("error thrown")'
+      , freeze: 'while(true) { if (window.bar) break; }'
     };
 
     describe('with code', function () {

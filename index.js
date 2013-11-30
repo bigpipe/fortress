@@ -51,6 +51,12 @@ function iframe(el, id) {
 /**
  * Representation of a single container.
  *
+ * Options:
+ *
+ * - retries; When an error occurs, how many times should we attempt to restart
+ *   the code before we automatically stop() the container.
+ * - stop; Stop the container when an error occurs.
+ *
  * @constructor
  * @param {Element} mount The element we should attach to.
  * @param {String} id A unique id for this container.
@@ -59,6 +65,8 @@ function iframe(el, id) {
  * @api private
  */
 function Container(mount, id, code, options) {
+  options = options || {};
+
   this.i = iframe(mount, id);     // The generated iframe.
   this.mount = mount;             // Mount point of the container.
   this.output = [];               // Historic console.* output.
@@ -66,6 +74,10 @@ function Container(mount, id, code, options) {
 
   this.created = +new Date();     // Creation EPOCH.
   this.started = null;            // Start EPOCH.
+
+  this.retries = 'retries' in options
+    ? options.reties
+    : 3;
 
   //
   // Optional code to load in the container and start it directly.
@@ -87,12 +99,25 @@ Container.prototype.inspect = function inspect() {
 };
 
 /**
- * Store console.x output from Image.
+ * Bind, without the .bind. This ensures that callbacks and functions are called
+ * with the correct context.
  *
- * @param {String} method The console[method] name.
- * @param {Array} args The arguments used to call the method.
+ * @param {Function} method The method that we should bind to.
+ * @param {Mixed} context The context of the method, default to `this`
+ * @returns {Function} Function that calls the method with the given context.
  * @api private
  */
+Container.prototype.bound = function bound(method, context) {
+  method = method || function noop() {};  // default to noop.
+  context = context || this;              // default to `this`.
+
+  var args = slice.call(arguments, 2);
+
+  return function binded() {
+    return method.apply(context, args.concat(slice.call(arguments, 0)));
+  };
+};
+
 /**
  * Parse and process incoming messages from the iframe. The incoming messages
  * should be objects that have a `type` property.
@@ -117,6 +142,10 @@ Container.prototype.onmessage = function onmessage(packet) {
       });
     break;
 
+    case 'error':
+      console.log('recieved an error in the container', packet);
+    break;
+
     //
     // Handle unknown package types by just returning false.
     //
@@ -128,23 +157,27 @@ Container.prototype.onmessage = function onmessage(packet) {
 };
 
 /**
- * Bind, without the .bind. This ensures that callbacks and functions are called
- * with the correct context.
+ * Error handling.
  *
- * @param {Function} method The method that we should bind to.
- * @param {Mixed} context The context of the method, default to `this`
- * @returns {Function} Function that calls the method with the given context.
+ * @returns {Boolean}
  * @api private
  */
-Container.prototype.bound = function bound(method, context) {
-  method = method || function noop() {};  // default to noop.
-  context = context || this;              // default to `this`.
+Container.prototype.onerror = function onerror() {
+  var a = Array.prototype.slice.call(arguments, 0);
+  this.onmessage({ type: "error", scope: "iframe.onerror", args: a });
 
-  var args = slice.call(arguments, 2);
+  return true;
+};
 
-  return function binded() {
-    method.apply(context, args.concat(slice.call(arguments, 0)));
-  };
+/**
+ * The container has been fully loaded and the iframe has executed it's code.
+ *
+ * @returns {Boolean}
+ * @api private
+ */
+Container.prototype.onload = function onload() {
+  console.log('onload', arguments);
+  return true;
 };
 
 /**
@@ -159,7 +192,7 @@ Container.prototype.start = function start() {
   // We don't need to use `.addEventLister` as we only want and require one
   // single event listener.
   //
-  this.i.frame.onerror = this.bound(this.onerror);
+  this.i.window.onerror = this.bound(this.onerror);
   this.i.frame.onload = this.bound(this.onload);
 
   //
@@ -279,13 +312,25 @@ Image.prototype.patch = function patch() {
     //
     'top = self = parent = window;',
 
-    '(function (o, h) {',
-
     //
     // Eliminate the browsers blocking dialogs, we're in a iframe not a browser.
     //
-    'for (var i = 0; i < h.length; i++) o[h[i]] = function () {};',
-    '})(this, ["alert", "prompt", "confirm"]);'
+    '(function (o, h) {',
+      'for (var i = 0; i < h.length; i++) o[h[i]] = function () {};',
+    '})(this, ["alert", "prompt", "confirm"]);',
+
+    //
+    // Add a error listener. Adding it on the iframe it self doesn't make it
+    // bubble up to the container. So in order to capture errors and notifying
+    // the container we need to add a `window.onerror` listener inside the
+    // iframe it self.
+    // @TODO add proper stacktrace tool here?
+    //
+    'this.onerror = function onerror() {',
+      'var a = Array.prototype.slice.call(arguments, 0);',
+      this.id +'({ type: "error", scope: "window.onerror", args: a });',
+      'return true;',
+    '};',
   ].join('\n');
 };
 
@@ -314,7 +359,7 @@ Image.prototype.consolas = function consolas() {
           //
           // Proxy messages to the container.
           //
-          this.id +'({ type: "console", method: y, args: a });',
+          this.id +'({ type: "console", scope: y, args: a });',
         '};',
       '}(m[i]));',
     '}(this, typeof console !== "undefined" ? console : {}, ["debug","error","info","log","warn","dir","dirxml","table","trace","assert","count","markTimeline","profile","profileEnd","time","timeEnd","timeStamp","timeline","timelineEnd","group","groupCollapsed","groupEnd","clear", "select"]));'
