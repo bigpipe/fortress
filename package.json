@@ -28,5 +28,8 @@
     "pre-commit": "0.0.4",
     "mocha": "~1.14.0",
     "zuul": "~1.0.4"
+  },
+  "dependencies": {
+    "eventemitter3": "0.0.1"
   }
 }
