@@ -9,37 +9,51 @@
  * @api private
  */
 function Image(id, source) {
+  this.compiled = null;
   this.source = source;
   this.id = id;
 }
 
 /**
- * As we are running the code in a sandboxed iframe we need to make sure that
- * UI blocking code is removed or patched correctly. In addition to that we need
- * to make sure that the iframe points to the same domain as our host page in
- * order cross origin based requests to work correctly.
+ * Assume that the source of the Image is loaded using toString() so it will be
+ * automatically transformed when the Image instance is concatenated or added to
+ * the DOM.
  *
- * @returns {String} Boilerplate code.
+ * @returns {String}
+ * @api public
+ */
+Image.prototype.toString = function toString() {
+  if (this.compiled) return this.compiled;
+  return this.compiled = this.transform();
+};
+
+/**
+ * Apply source code transformations to the code so it can work inside an
+ * iframe.
+ *
+ * @TODO allow custom code transformations.
+ * @returns {String}
  * @api private
  */
-Image.prototype.patch = function patch() {
-  return [
+Image.prototype.transform = function transform() {
+  var code = ('('+ (function fort(global) {
+    /**
+     * Simple helper function to do nothing.
+     *
+     * @type {Function}
+     * @api private
+     */
+    function noop() {}
+
     //
-    // Force the same domain as our "root" script.
+    // Force the same domain as our 'root' script.
     //
-    'document.domain="'+ document.domain +'";',
+    document.domain = '_fortress_domain_';
 
     //
     // Prevent common iframe detection scripts that do frame busting.
     //
-    'top = self = parent = window;',
-
-    //
-    // Eliminate the browsers blocking dialogs, we're in a iframe not a browser.
-    //
-    '(function (o, h) {',
-      'for (var i = 0; i < h.length; i++) o[h[i]] = function () {};',
-    '})(this, ["alert", "prompt", "confirm"]);',
+    global.top = global.self = global.parent = global;
 
     //
     // Add a error listener. Adding it on the iframe it self doesn't make it
@@ -48,89 +62,82 @@ Image.prototype.patch = function patch() {
     // iframe it self.
     // @TODO add proper stacktrace tool here?
     //
-    'this.onerror = function onerror() {',
-      'var a = Array.prototype.slice.call(arguments, 0);',
-      this.id +'({ type: "error", scope: "window.onerror", args: a });',
-      'return true;',
-    '};',
-  ].join('\n');
-};
+    global.onerror = function onerror() {
+      var a = Array.prototype.slice.call(arguments, 0);
+      this._fortress_id_({ type: 'error', scope: 'window.onerror', args: a });
+      return true;
+    };
 
-/**
- * Override the build-in console.log so we can transport the logging messages to
- * the actual page.
- *
- * @returns {String} Boilerplate code.
- * @api private
- */
-Image.prototype.consolas = function consolas() {
-  return [
-    '(function (o, c, m) {',
-      'o.console = {};',
-      'for (var i = 0; i < m.length; i++) (function (y) {',
+    //
+    // Eliminate the browsers blocking dialogs, we're in a iframe not a browser.
+    //
+    for (var i = 0, b = ['alert', 'prompt', 'confirm']; i < b.length; i++) {
+      global[b[i]] = noop;
+    }
+
+    //
+    // Override the build-in console.log so we can transport the logging messages to
+    // the actual page.
+    //
+    var methods = [
+        'debug', 'error', 'info', 'log', 'warn', 'dir', 'dirxml', 'table', 'trace'
+      , 'assert', 'count', 'markTimeline', 'profile', 'profileEnd', 'time'
+      , 'timeEnd', 'timeStamp', 'timeline', 'timelineEnd', 'group'
+      , 'groupCollapsed', 'groupEnd', 'clear', 'select'
+    ], fconsole = typeof console !== 'undefined' ? console : {};
+    global.console = {};
+
+    /**
+     * Helper method to polyfil our global console method so we can proxy it's
+     * usage to the
+     */
+    function polyconsole(method) {
+      //
+      // Ensure that this host environment always has working console.
+      //
+      global.console[method] = function () {
+        var args = Array.prototype.slice.call(arguments, 0);
+
         //
-        // Ensure that this host environment always has working console.
+        // If the host supports this given method natively, execute it.
         //
-        'o.console[y] = function () {',
-          'var a = Array.prototype.slice.call(arguments, 0);',
-          //
-          // If the host supports this given method natively, execute it.
-          //
-          'if (y in c) c[y].apply(c, a);',
+        if (method in fconsole) fconsole[method].apply(fconsole, args);
 
-          //
-          // Proxy messages to the container.
-          //
-          this.id +'({ type: "console", scope: y, args: a });',
-        '};',
-      '}(m[i]));',
-    '}(this, typeof console !== "undefined" ? console : {}, ["debug","error","info","log","warn","dir","dirxml","table","trace","assert","count","markTimeline","profile","profileEnd","time","timeEnd","timeStamp","timeline","timelineEnd","group","groupCollapsed","groupEnd","clear", "select"]));'
-  ].join('\n');
-};
+        //
+        // Proxy messages to the container.
+        //
+        this._fortress_id_({ type: 'console', scope: method, args: args });
+      };
+    }
 
-/**
- * Limit the access scope of local storage. We are sharing the browser with
- * a couple of other scripts and we don't want them to access our local storage
- * and session storage.
- *
- * @param {Number} size The total storage this has.
- * @returns {String} Boilerplate code.
- * @api private
- */
-Image.prototype.storage = function storage(size) {
-  return '';
-};
-
-/**
- * Return the actual contents as the image is concatenated with some other
- * strings.
- *
- * @return {String}
- * @api private
- */
-Image.prototype.toString = function toString() {
-  return [
-    //
-    // Wrap the source in a `fort()` function so we can delay the execution
-    // while maintaining accurate line numbers by adding our own boiler plate
-    // code after the fort() function.
-    //
-    'function fort() {'+ this.source +'}',
-
-    //
-    // Add the custom boiler plate code.
-    //
-    this.patch(),
-    this.storage(),
-    this.consolas(),
+    for (i = 0; i < methods.length; i++) {
+      polyconsole(methods[i]);
+    }
 
     //
     // All boilerplate code has been loaded, execute the actual code. After
     // a slight delay so we update the window with a reference to our own
     // container.
     //
-    'setTimeout(fort, 0);'
-  ].join('\n');
+    setTimeout(this.fort, 0);
+  })+')(this)');
+
+  //
+  // Replace our "template tags" with the actual content.
+  //
+  code = code
+    .replace(/_fortress_domain_/, document.domain)
+    .replace(/this\._fortress_id_/, this.id);
+
+  //
+  // Add the source on the first line so the stack traces that are returned from
+  // errors still have the correct line numbers. By doing an indexOf on the
+  // source we can get the first opening bracket and append the source to it.
+  //
+  var curly = code.indexOf('{') + 1;
+  return code.slice(0, curly)
+    + 'this.fort=function fort() {'+ this.source +'};'
+    + code.slice(curly);
 };
 
 module.exports = Image;
