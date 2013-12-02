@@ -73,9 +73,11 @@ Fortress.prototype.globals = function globals(old) {
     // and acknowledged leaks and only return an array that contains newly
     // introduced leaks.
     //
-    if (introduced && old && old.length) return ~old.indexOf(introduced)
+    if (introduced && old && old.length) {
+      return ~old.indexOf(key)
       ? false
       : true;
+    }
 
     return introduced;
   });

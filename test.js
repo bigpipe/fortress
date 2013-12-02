@@ -94,10 +94,10 @@ describe('Fortress', function () {
 
       window.foo = 'bar';
 
-      var introduced = fort.globals();
+      var introduced = fort.globals(current);
 
-      assert.equal(introduced.length, 1, 'the foo variable');
-      assert.equal(introduced[0], 'foo', 'the foo variable');
+      assert.equal(introduced.length, 1, 'we introduced one global');
+      assert.equal(introduced[0], 'foo', 'the global has the name foo');
 
       // Remove global.
       try { delete window.foo; }
