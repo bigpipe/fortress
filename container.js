@@ -1,6 +1,7 @@
 'use strict';
 
-var slice = Array.prototype.slice
+var EventEmitter = require('eventemitter3')
+  , slice = Array.prototype.slice
   , iframe = require('./iframe')
   , Image = require('./image');
 
@@ -36,10 +37,17 @@ function Container(mount, id, code, options) {
     : 3;
 
   //
+  // Initialise as an EventEmitter before we start loading in the code.
+  //
+  EventEmitter.call(this);
+
+  //
   // Optional code to load in the container and start it directly.
   //
   if (code) this.load(code).start();
 }
+
+Container.prototype = new EventEmitter();
 
 /**
  * Inspect the container to get some useful statistics about it and it's health.

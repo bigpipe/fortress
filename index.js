@@ -1,6 +1,7 @@
 'use strict';
 
-var Container = require('./container')
+var EventEmitter = require('eventemitter3')
+  , Container = require('./container')
   , iframe = require('./iframe');
 
 /**
@@ -30,8 +31,18 @@ function Fortress(options) {
   this.mount = div;
 
   scripts = null;
+
+  EventEmitter.call(this);
 }
 
+Fortress.prototype = new EventEmitter();
+
+/**
+ * Detect HTMLfile support.
+ *
+ * @type {Boolean}
+ * @api private
+ */
 Fortress.prototype.htmlfile = false;
 
 try { Fortress.prototype.htmlfile = !!new ActiveXObject('htmlfile'); }
