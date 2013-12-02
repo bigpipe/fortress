@@ -124,6 +124,23 @@ Container.prototype.onmessage = function onmessage(packet) {
 };
 
 /**
+ * Small wrapper around sandbox evaluation.
+ *
+ * @param {String} cmd The command to executed in the iframe.
+ * @param {Function} fn Callback
+ * @api public
+ */
+Container.prototype.eval = function evil(cmd, fn) {
+  try {
+    this.i.window.eval(cmd);
+  } catch (e) {
+    return fn(e);
+  }
+
+  return fn();
+};
+
+/**
  * Error handling.
  *
  * @returns {Boolean}
