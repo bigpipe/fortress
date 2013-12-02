@@ -246,6 +246,42 @@ Fortress.prototype.destroy = function destroy() {
   this.global = this.mount = this.containers = null;
 };
 
+/**
+ * Prepare a file or function to be loaded in to a Fortress based Container.
+ * When the transfer boolean is set we assume that you want to load pass the
+ * result of to a function or assign it a variable from the server to the client
+ * side:
+ *
+ * ```
+ * <script>
+ * var code = <%- Fortress.stringify(code, true) %>
+ * </script>
+ * ```
+ *
+ * @param {String|Function} code The code that needs to be transformed.
+ * @param {Boolean} transfer Prepare the code for transfer.
+ * @returns {String}
+ * @api public
+ */
+Fortress.stringify = function stringify(code, transfer) {
+  if ('function' === typeof code) {
+    //
+    // We've been given a pure function, so we need to wrap it a little bit
+    // after we've done a `toString` for the source retrieval so the function
+    // will automatically execute when it's activated.
+    //
+    code = '('+ code.toString() +'())';
+  } else {
+    //
+    // We've been given a string, so we're going to assume that it's path to file
+    // that should be included instead.
+    //
+    code = require('fs').readFileSync(code, 'utf-8');
+  }
+
+  return transfer ? JSON.stringify(code) : code;
+};
+
 //
 // Expose our Container and Image so it can be extended by third party.
 //
