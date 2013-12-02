@@ -71,8 +71,10 @@ Image.prototype.transform = function transform() {
     //
     // Eliminate the browsers blocking dialogs, we're in a iframe not a browser.
     //
-    for (var i = 0, b = ['alert', 'prompt', 'confirm']; i < b.length; i++) {
-      global[b[i]] = noop;
+    var blocking = ['alert', 'prompt', 'confirm', 'print', 'open'];
+    for (var i = 0; i < blocking.length; i++) {
+      try { global[blocking[i]] = noop; }
+      catch (e) {}
     }
 
     //
