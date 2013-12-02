@@ -1,15 +1,22 @@
 /**
  * Create a new pre-configured iframe.
  *
+ * Options:
+ *
+ * visible: (boolean) Don't hide the iframe by default.
+ * sandbox: (array) Sandbox properties.
+ *
  * @TODO add support for the HTML5 sandbox attribute.
  * @param {Element} el DOM element where the iframe should be added on.
  * @param {String} id A unique name/id for the iframe.
+ * @param {String} options Options;
  * @return {Object}
  * @api private
  */
-function iframe(el, id) {
+function iframe(el, id, options) {
   'use strict';
 
+  options = options || {};
   var i;
 
   try {
@@ -29,9 +36,20 @@ function iframe(el, id) {
   // The iframe needs to be added in to the DOM before we can modify it, make
   // sure it's remains unseen.
   //
-  i.style.top = i.style.left = -10000;
-  i.style.position = 'absolute';
-  i.style.display = 'none';
+  if (!options.visible) {
+    i.style.top = i.style.left = -10000;
+    i.style.position = 'absolute';
+    i.style.display = 'none';
+  }
+
+  i.setAttribute('frameBorder', 0);
+  i.setAttribute('sandbox', (options.sandbox || [
+    'allow-pointer-lock',
+    'allow-same-origin',
+    'allow-scripts',
+    'allow-popups',
+    'allow-forms'
+  ]).join(' '));
   i.id = id;
 
   //
