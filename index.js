@@ -35,6 +35,9 @@ function Fortress(options) {
   EventEmitter.call(this);
 }
 
+//
+// Fortress inherits from EventEmitter3
+//
 Fortress.prototype = new EventEmitter();
 
 /**
@@ -148,9 +151,7 @@ Fortress.prototype.get = function get(id) {
 
 /**
  * Inspect a running Container in order to get more detailed information about
- * the process. In recent browsers we can access:
- *
- * - console.memory(), performance.memory
+ * the process and the state of the container.
  *
  * @param {String} id The container id.
  * @api public
