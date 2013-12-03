@@ -155,8 +155,11 @@ Fortress.prototype.get = function get(id) {
  * @param {String} id The container id.
  * @api public
  */
-Fortress.prototype.inspect = function inspect(id) {
-  return this;
+Fortress.prototype.inspect = Fortress.prototype.top = function inspect(id) {
+  var container = this.get(id);
+  if (!container) return {};
+
+  return container.inspect();
 };
 
 /**

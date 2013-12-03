@@ -84,7 +84,10 @@ Container.prototype.bound = function bound(method, context) {
 
 /**
  * Parse and process incoming messages from the iframe. The incoming messages
- * should be objects that have a `type` property.
+ * should be objects that have a `type` property. The main reason why we have
+ * this as a separate method is to give us flexiblity. We are leveraging iframes
+ * at the moment, but in the future we might want to leverage WebWorkers for the
+ * sandboxing of JavaScript.
  *
  * @param {Object} packet The incoming message.
  * @returns {Boolean} Message was handled y/n.
@@ -111,6 +114,14 @@ Container.prototype.onmessage = function onmessage(packet) {
     //
     case 'error':
       console.log('recieved an error in the container', packet);
+    break;
+
+    //
+    // We've received a ping response from the iframe, so we know it's still
+    // running as intended.
+    //
+    case 'ping':
+      console.log('received a ping message from');
     break;
 
     //

@@ -136,6 +136,7 @@ describe('Fortress', function () {
       , blocking: 'alert("foo"); confirm("bar"); prompt("baz");'
       , throws: 'throw new Error("error thrown")'
       , freeze: 'while(true) { if (window.bar) break; }'
+      , recursive: 'function x(a) { foo(a++) } function foo(a) { x(a++) } x(10);'
     };
 
     describe('with code', function () {

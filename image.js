@@ -117,6 +117,18 @@ Image.prototype.transform = function transform() {
     }
 
     //
+    // The setInterval allows us to detect if the iframe is still running of if
+    // it has crashed or maybe it's just freezing up. We will be missing pings
+    // or get extremely slow responses. Browsers will kill long running scripts
+    // after 5 seconds of freezing:
+    //
+    // http://www.nczonline.net/blog/2009/01/05/what-determines-that-a-script-is-long-running/
+    //
+    setInterval(function ping() {
+      this._fortress_id({ type: 'ping' });
+    }, 1000);
+
+    //
     // All boilerplate code has been loaded, execute the actual code. After
     // a slight delay so we update the window with a reference to our own
     // container.
