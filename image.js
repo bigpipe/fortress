@@ -134,7 +134,7 @@ Image.prototype.transform = function transform() {
     // container.
     //
     setTimeout(this.fort, 0);
-  })+')(this)');
+  })+').call({}, this)');
 
   //
   // Replace our "template tags" with the actual content.
