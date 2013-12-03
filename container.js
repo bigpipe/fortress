@@ -47,6 +47,9 @@ function Container(mount, id, code, options) {
   if (code) this.load(code).start();
 }
 
+//
+// The container inherits from the EventEmitter3.
+//
 Container.prototype = new EventEmitter();
 
 /**
@@ -56,9 +59,25 @@ Container.prototype = new EventEmitter();
  * @api public
  */
 Container.prototype.inspect = function inspect() {
+  var memory;
+
+  //
+  // Try to read out the `performance` information from the iframe.
+  //
+  if (this.i.window && this.i.window.performance) {
+    memory = this.i.window.performance.memory;
+  }
+
+  memory = memory || {};
+
   return {
     uptime: +new Date() - this.started,
-    running: !!document.getElementById(this.id)
+    attached: !!document.getElementById(this.id),
+    memory: {
+      limit: memory.jsHeapSizeLimit || 0,
+      total: memory.totalJSHeapSize || 0,
+      used: memory.usedJSHeapSize || 0
+    }
   };
 };
 
