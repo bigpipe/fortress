@@ -13,6 +13,8 @@ var EventEmitter = require('eventemitter3')
  * - retries; When an error occurs, how many times should we attempt to restart
  *   the code before we automatically stop() the container.
  * - stop; Stop the container when an error occurs.
+ * - timeout; How long can a ping packet timeout before we assume that the
+ *   container has died and should be restarted.
  *
  * @constructor
  * @param {Element} mount The element we should attach to.
@@ -24,17 +26,21 @@ var EventEmitter = require('eventemitter3')
 function Container(mount, id, code, options) {
   options = options || {};
 
-  this.i = iframe(mount, id);     // The generated iframe.
-  this.mount = mount;             // Mount point of the container.
-  this.console = [];              // Historic console.* output.
-  this.id = id;                   // Unique id.
+  this.i = iframe(mount, id);         // The generated iframe.
+  this.mount = mount;                 // Mount point of the container.
+  this.console = [];                  // Historic console.* output.
+  this.id = id;                       // Unique id.
 
-  this.created = +new Date();     // Creation EPOCH.
-  this.started = null;            // Start EPOCH.
+  this.created = +new Date();         // Creation EPOCH.
+  this.started = null;                // Start EPOCH.
 
-  this.retries = 'retries' in options
+  this.retries = 'retries' in options // How many times should we reload
     ? options.reties
     : 3;
+
+  this.timeout = 'timeout' in options //
+    ? +options.timeout
+    : 1000;
 
   //
   // Initialise as an EventEmitter before we start loading in the code.
@@ -51,6 +57,62 @@ function Container(mount, id, code, options) {
 // The container inherits from the EventEmitter3.
 //
 Container.prototype = new EventEmitter();
+
+/**
+ * Start a new ping timeout.
+ *
+ * @api private
+ */
+Container.prototype.ping = function ping() {
+  if (this.pong) clearTimeout(this.pong);
+
+  this.pong = setTimeout(this.bound(function pong() {
+    this.onmessage({ type: "error", scope: "iframe.timeout", args: [
+      'the iframe is no longer responding with ping packets'
+    ] });
+  }), this.timeout);
+
+  return this;
+};
+
+/**
+ * Retry loading the code in the iframe. The container will be restored to a new
+ * state or
+ */
+Container.prototype.retry = function retry() {
+  switch (this.retries) {
+    //
+    // This is our last attempt, we've tried to have the iframe restart the code
+    // it self, so for our last attempt we're going to completely create a new
+    // iframe and re-compile the code for it.
+    //
+    case 1:
+      this.stop(); // Clear old iframe and nuke it's references
+      this.i = iframe(this.mount, this.id);
+      this.load(this.image.source).start();
+    break;
+
+    //
+    // No more attempts left.
+    //
+    case 0:
+      this.emit('end');
+    return;
+
+    //
+    // By starting and stopping (and there for removing and adding it back to
+    // the DOM) the iframe will reload it's HTML and the added code.
+    //
+    default:
+      this.stop().start();
+    break;
+  }
+
+  this.emit('retry', this.retries);
+  this.retries--;
+
+  return this;
+};
 
 /**
  * Inspect the container to get some useful statistics about it and it's health.
@@ -136,7 +198,7 @@ Container.prototype.onmessage = function onmessage(packet) {
     // An error happend in the iframe, process it.
     //
     case 'error':
-      console.log('recieved an error in the container', packet);
+      this.emit('error', new Error(packet.args[0])).retry();
     break;
 
     //
@@ -144,7 +206,7 @@ Container.prototype.onmessage = function onmessage(packet) {
     // running as intended.
     //
     case 'ping':
-      console.log('received a ping message from');
+      this.ping();
     break;
 
     //
@@ -194,7 +256,7 @@ Container.prototype.onerror = function onerror() {
  * @api private
  */
 Container.prototype.onload = function onload() {
-  console.log('onload', arguments);
+  this.emit('start');
   return true;
 };
 
@@ -292,6 +354,7 @@ Container.prototype.destroy = function destroy() {
   // Remove all possible references to release as much memory as possible.
   //
   this.mount = this.image = this.id = this.i = this.created = null;
+  this.removeAllListeners();
 
   return this;
 };
