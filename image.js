@@ -94,6 +94,8 @@ Image.prototype.transform = function transform() {
      * usage to the
      */
     function polyconsole(method) {
+      var attach = { debug: 1, error: 1, log: 1, warn: 1 };
+
       //
       // Ensure that this host environment always has working console.
       //
@@ -108,7 +110,12 @@ Image.prototype.transform = function transform() {
         //
         // Proxy messages to the container.
         //
-        this._fortress_id_({ type: 'console', scope: method, args: args });
+        this._fortress_id_({
+          attach: method in attach,
+          type: 'console',
+          scope: method,
+          args: args
+        });
       };
     }
 
