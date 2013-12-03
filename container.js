@@ -26,7 +26,7 @@ function Container(mount, id, code, options) {
 
   this.i = iframe(mount, id);     // The generated iframe.
   this.mount = mount;             // Mount point of the container.
-  this.output = [];               // Historic console.* output.
+  this.console = [];              // Historic console.* output.
   this.id = id;                   // Unique id.
 
   this.created = +new Date();     // Creation EPOCH.
@@ -118,14 +118,18 @@ Container.prototype.onmessage = function onmessage(packet) {
   switch (packet.type) {
     //
     // The code in the iframe used the `console` method.
-    // @TODO stream this output when we're attached.
     //
     case 'console':
-      this.output.push({
+      this.console.push({
         method: packet.method,
         epoch: +new Date(),
         args: packet.args
       });
+
+      if (packet.attach) {
+        this.emit.apply(this, ['attach::'+ packet.method].conat(packet.args));
+        this.emit.apply(this, ['attach'].conat(packet.args));
+      }
     break;
 
     //

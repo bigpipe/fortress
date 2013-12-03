@@ -228,10 +228,49 @@ Fortress.prototype.kill = function kill(id) {
 /**
  * Start streaming logging information and cached logs.
  *
- * @param {String} id
+ * @param {String} id The container id.
+ * @param {String} method The log method name.
+ * @param {Function} fn The function that needs to be called for each stream.
  * @api public
  */
-Fortress.prototype.attach = function attach(id) {
+Fortress.prototype.attach = function attach(id, method, fn) {
+  var container = this.get(id);
+  if (!container) return this;
+
+  if ('function' === typeof method) {
+    fn = method;
+    method = 'attach';
+  } else {
+    method += 'attach::'+ method;
+  }
+
+  container.on(method, fn);
+
+  return this;
+};
+
+/**
+ * Stop streaming logging information and cached logs.
+ *
+ * @param {String} id The container id.
+ * @param {String} method The log method name.
+ * @param {Function} fn The function that needs to be called for each stream.
+ * @api public
+ */
+Fortress.prototype.detach = function detach(id, method, fn) {
+  var container = this.get(id);
+  if (!container) return this;
+
+  if ('function' === typeof method) {
+    fn = method;
+    method = 'attach';
+  } else {
+    method += 'attach::'+ method;
+  }
+
+  if (!fn) container.removeAllListeners(method);
+  else container.on(method, fn);
+
   return this;
 };
 
