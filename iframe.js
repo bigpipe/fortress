@@ -6,7 +6,6 @@
  * visible: (boolean) Don't hide the iframe by default.
  * sandbox: (array) Sandbox properties.
  *
- * @TODO add support for the HTML5 sandbox attribute.
  * @param {Element} el DOM element where the iframe should be added on.
  * @param {String} id A unique name/id for the iframe.
  * @param {String} options Options;
@@ -59,7 +58,7 @@ function iframe(el, id, options) {
 
   return {
     document: i.contentDocument || i.contentWindow.document,
-    window: i.contentWindow || i.contentDocument,
+    window: i.contentWindow || i.contentDocument.parentWindow,
     frame: i
   };
 }
