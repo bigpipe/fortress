@@ -89,7 +89,9 @@ Container.prototype.ping = function ping() {
 
 /**
  * Retry loading the code in the iframe. The container will be restored to a new
- * state or
+ * state or completely reset the iframe.
+ *
+ * @api private
  */
 Container.prototype.retry = function retry() {
   switch (this.retries) {
@@ -223,9 +225,11 @@ Container.prototype.onmessage = function onmessage(packet) {
     break;
 
     //
-    // Handle unknown package types by just returning false.
+    // Handle unknown package types by just returning false after we've emitted
+    // it as an `regular` message.
     //
     default:
+      this.emit('message', packet.data);
       return false;
   }
 
