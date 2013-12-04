@@ -81,11 +81,15 @@ Image.prototype.transform = function transform() {
     // Override the build-in console.log so we can transport the logging messages to
     // the actual page.
     //
+    // @see https://github.com/DeveloperToolsWG/console-object/blob/master/api.md
+    // for the minimum supported console.* methods.
+    //
     var methods = [
         'debug', 'error', 'info', 'log', 'warn', 'dir', 'dirxml', 'table', 'trace'
       , 'assert', 'count', 'markTimeline', 'profile', 'profileEnd', 'time'
       , 'timeEnd', 'timeStamp', 'timeline', 'timelineEnd', 'group'
-      , 'groupCollapsed', 'groupEnd', 'clear', 'select'
+      , 'groupCollapsed', 'groupEnd', 'clear', 'select', 'exception'
+      , 'isIndependentlyComposed'
     ], fconsole = typeof console !== 'undefined' ? console : {};
     global.console = {};
 
