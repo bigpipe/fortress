@@ -30,6 +30,7 @@ function Container(mount, id, code, options) {
   this.mount = mount;                 // Mount point of the container.
   this.console = [];                  // Historic console.* output.
   this.id = id;                       // Unique id.
+  this.readyState = Container.CLOSED; // The readyState of the container.
 
   this.created = +new Date();         // Creation EPOCH.
   this.started = null;                // Start EPOCH.
@@ -57,6 +58,17 @@ function Container(mount, id, code, options) {
 // The container inherits from the EventEmitter3.
 //
 Container.prototype = new EventEmitter();
+
+/**
+ * Internal readyStates for the container.
+ *
+ * @type {Number}
+ * @private
+ */
+Container.CLOSING = 1;
+Container.OPENING = 2;
+Container.CLOSED  = 3;
+Container.OPEN    = 4;
 
 /**
  * Start a new ping timeout.
@@ -133,6 +145,7 @@ Container.prototype.inspect = function inspect() {
   memory = memory || {};
 
   return {
+    state: this.readyState,
     uptime: +new Date() - this.started,
     attached: !!document.getElementById(this.id),
     memory: {
@@ -256,7 +269,16 @@ Container.prototype.onerror = function onerror() {
  * @api private
  */
 Container.prototype.onload = function onload() {
+  this.readyState = Container.OPEN;
   this.emit('start');
+
+  return true;
+};
+
+Container.prototype.onunload = function onunload() {
+  this.readyState = Container.CLOSED;
+  this.emit('stop');
+
   return true;
 };
 
@@ -267,6 +289,8 @@ Container.prototype.onload = function onload() {
  * @api public
  */
 Container.prototype.start = function start() {
+  this.readyState = Container.OPENING;
+
   //
   // Attach various event listeners so we can update the state of the container.
   // We don't need to use `.addEventLister` as we only want and require one
@@ -274,6 +298,7 @@ Container.prototype.start = function start() {
   //
   this.i.window.onerror = this.bound(this.onerror);
   this.i.frame.onload = this.bound(this.onload);
+  this.i.frame.onunload = this.bound(this.unload);
 
   //
   // If the container is already in the HTML we're going to assume that we still
@@ -312,6 +337,7 @@ Container.prototype.start = function start() {
 Container.prototype.stop = function stop() {
   if (!document.getElementById(this.id)) return this;
 
+  this.readyState = Container.CLOSING;
   this.i.window[this.id] = null;
   this.mount.removeChild(this.i.frame);
 
@@ -321,7 +347,10 @@ Container.prototype.stop = function stop() {
   try { this.i.frame.onload = null; }
   catch (e) {}
 
-  try { this.i.frame.onerror = null; }
+  try { this.i.frame.onunload = null; }
+  catch (e) {}
+
+  try { this.i.window.onerror = null; }
   catch (e) {}
 
   return this;
