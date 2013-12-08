@@ -4,6 +4,17 @@
 var Fortress = require('./index.js')
   , assert = require('assert');
 
+//
+// Fixtures.
+//
+var fixture = {
+    console: 'console.log("foo"); throw new Error("foo")'
+  , blocking: 'alert("foo"); confirm("bar"); prompt("baz");'
+  , throws: 'throw new Error("error thrown")'
+  , freeze: 'while(true) { if (window.bar) break; }'
+  , recursive: 'function x(a) { foo(a++) } function foo(a) { x(a++) } x(10);'
+};
+
 describe('Fortress', function () {
   it('is a function', function () {
     assert.equal(typeof Fortress, 'function');
@@ -131,14 +142,6 @@ describe('Fortress', function () {
   });
 
   describe('#create', function () {
-    var fixture = {
-        console: 'console.log("foo"); throw new Error("foo")'
-      , blocking: 'alert("foo"); confirm("bar"); prompt("baz");'
-      , throws: 'throw new Error("error thrown")'
-      , freeze: 'while(true) { if (window.bar) break; }'
-      , recursive: 'function x(a) { foo(a++) } function foo(a) { x(a++) } x(10);'
-    };
-
     describe('with code', function () {
       it('runs our console code', function () {
         var fort = new Fortress()
@@ -149,5 +152,43 @@ describe('Fortress', function () {
         // fort.destroy();
       });
     });
+  });
+});
+
+describe('Container', function () {
+  it('inherits from EventEmitter3');
+
+  describe('#ping', function () {
+    it('sets a new ping timeout for the given timeout');
+    it('produces an error when the iframe times out');
+  });
+
+  describe('#retry', function () {
+    it('emits `retry` after each attempt');
+    it('recreates the iframe on the last retry');
+    it('emits `end` after the last retry');
+  });
+
+  describe('#inspect', function () {
+    it('returns an empty object when the container is down');
+    it('returns the memory of the VM when the browser supports it');
+    it('returns the uptime');
+  });
+
+  describe('#bound', function () {
+    it('binds the given function');
+    it('allows optional context');
+    it('currys the args');
+  });
+
+  describe('#onmessage', function () {
+    it('returns false for non-objects');
+    it('returns false if there isnt a packet type');
+    it('stores console messages');
+    it('emits `attach` events for packet.attach & log types');
+    it('emits `attach::method` for packet.attach & log types');
+    it('emits `error` for error packets');
+    it('restarts the ping squence with a ping packet');
+    it('emits `message` for all other responses');
   });
 });
