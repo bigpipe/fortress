@@ -36,11 +36,11 @@ function Container(mount, id, code, options) {
   this.started = null;                // Start EPOCH.
 
   this.retries = 'retries' in options // How many times should we reload
-    ? options.reties
+    ? +options.reties || 3
     : 3;
 
-  this.timeout = 'timeout' in options //
-    ? +options.timeout
+  this.timeout = 'timeout' in options // Ping timeout before we reboot.
+    ? +options.timeout || 1000
     : 1000;
 
   //
@@ -181,9 +181,9 @@ Container.prototype.bound = function bound(method, context) {
 /**
  * Parse and process incoming messages from the iframe. The incoming messages
  * should be objects that have a `type` property. The main reason why we have
- * this as a separate method is to give us flexiblity. We are leveraging iframes
+ * this as a separate method is to give us flexibility. We are leveraging iframes
  * at the moment, but in the future we might want to leverage WebWorkers for the
- * sandboxing of JavaScript.
+ * sand boxing of JavaScript.
  *
  * @param {Object} packet The incoming message.
  * @returns {Boolean} Message was handled y/n.
@@ -191,6 +191,7 @@ Container.prototype.bound = function bound(method, context) {
  */
 Container.prototype.onmessage = function onmessage(packet) {
   if ('object' !== typeof packet) return false;
+  if (!('type' in packet)) return false;
 
   switch (packet.type) {
     //
@@ -210,7 +211,7 @@ Container.prototype.onmessage = function onmessage(packet) {
     break;
 
     //
-    // An error happend in the iframe, process it.
+    // An error happened in the iframe, process it.
     //
     case 'error':
       this.emit('error', new Error(packet.args[0])).retry();
