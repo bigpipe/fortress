@@ -60,7 +60,7 @@ Image.prototype.transform = function transform() {
     // bubble up to the container. So in order to capture errors and notifying
     // the container we need to add a `window.onerror` listener inside the
     // iframe it self.
-    // @TODO add proper stacktrace tool here?
+    // @TODO add proper stack trace tool here?
     //
     global.onerror = function onerror() {
       var a = Array.prototype.slice.call(arguments, 0);
@@ -94,7 +94,7 @@ Image.prototype.transform = function transform() {
     global.console = {};
 
     /**
-     * Helper method to polyfil our global console method so we can proxy it's
+     * Helper method to polyfill our global console method so we can proxy it's
      * usage to the
      */
     function polyconsole(method) {

@@ -8,7 +8,7 @@
  *
  * @param {Element} el DOM element where the iframe should be added on.
  * @param {String} id A unique name/id for the iframe.
- * @param {String} options Options;
+ * @param {String} options Options.
  * @return {Object}
  * @api private
  */

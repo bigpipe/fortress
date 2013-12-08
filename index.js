@@ -36,12 +36,13 @@ function Fortress(options) {
 }
 
 //
-// Fortress inherits from EventEmitter3
+// Fortress inherits from EventEmitter3.
 //
 Fortress.prototype = new EventEmitter();
 
 /**
- * Detect HTMLfile support.
+ * Detect HTMLfile support in Internet Explorer. This might be used for more
+ * advanced sand boxing in IE.
  *
  * @type {Boolean}
  * @api private
