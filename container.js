@@ -217,6 +217,8 @@ Container.prototype.onmessage = function onmessage(packet) {
   if ('object' !== typeof packet) return false;
   if (!('type' in packet)) return false;
 
+  packet.args = packet.args || [];
+
   switch (packet.type) {
     //
     // The code in the iframe used the `console` method.
@@ -230,7 +232,7 @@ Container.prototype.onmessage = function onmessage(packet) {
 
       if (packet.attach) {
         this.emit.apply(this, ['attach::'+ packet.method].concat(packet.args));
-        this.emit.apply(this, ['attach'].concat(packet.args));
+        this.emit.apply(this, ['attach', packet.method].concat(packet.args));
       }
     break;
 
@@ -271,8 +273,8 @@ Container.prototype.onmessage = function onmessage(packet) {
     // it as an `regular` message.
     //
     default:
-      this.emit('message', packet.data);
-      return false;
+      this.emit.apply(this, ['message'].concat(packet.args));
+    return false;
   }
 
   return true;

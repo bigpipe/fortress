@@ -292,14 +292,73 @@ describe('Container', function () {
   });
 
   describe('#onmessage', function () {
-    it('returns false for non-objects');
-    it('returns false if there isnt a packet type');
-    it('stores console messages');
-    it('emits `attach` events for packet.attach & log types');
-    it('emits `attach::method` for packet.attach & log types');
-    it('emits `error` for error packets');
+    it('returns false for non-objects', function () {
+      assert.ok(!container.onmessage('foo'), 'dont accept strings');
+      assert.ok(!container.onmessage([]), 'dont accept strings');
+      assert.ok(!container.onmessage(new Date), 'dont accept date');
+    });
+
+    it('returns false if there isnt a packet type', function () {
+      assert.ok(!container.onmessage({ foo: 'bar '}), 'no type prop');
+      assert.ok(container.onmessage({ type: 'load' }), 'has type');
+    });
+
+    it('stores console messages', function () {
+      assert.equal(container.console.length, 0, 'no active console messages');
+      container.onmessage({ type: 'console', method: 'log', args: ['foo'] });
+      assert.equal(container.console.length, 1, '1 active console message');
+      assert.equal(container.console[0].args[0], 'foo');
+    });
+
+    it('emits `attach` events for packet.attach & log types', function (done) {
+      container.on('attach', function (method, data) {
+        assert.equal(method, 'log');
+        assert.equal(data, 'foo');
+
+        done();
+      }).onmessage({
+        type: 'console',
+        method: 'log',
+        args: ['foo'],
+        attach: true
+      });
+    });
+
+    it('emits `attach::method` for packet.attach & log types', function (done) {
+      container.on('attach::log', function (data) {
+        assert.equal(data, 'foo');
+        done();
+      }).onmessage({
+        type: 'console',
+        method: 'log',
+        args: ['foo'],
+        attach: true
+      });
+    });
+
+    it('emits `error` for error packets', function (done) {
+      container.on('error', function (err) {
+        assert.ok(err instanceof Error);
+        assert.equal(err.message, 'foo');
+
+        done();
+      }).onmessage({
+        type: 'error',
+        args: ['foo']
+      });
+    });
+
+    it('emits `message` for all other responses', function (done) {
+      container.on('message', function (data) {
+        assert.equal('foo', data);
+        done();
+      }).onmessage({
+        type: 'banana',
+        args: ['foo']
+      });
+    });
+
     it('restarts the ping squence with a ping packet');
-    it('emits `message` for all other responses');
   });
 
   describe('#eval', function () {
