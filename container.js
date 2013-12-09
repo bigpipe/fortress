@@ -144,7 +144,11 @@ Container.prototype.retry = function retry() {
  * @api public
  */
 Container.prototype.inspect = function inspect() {
-  var memory;
+  var attached = this.attached()
+    , date = new Date()
+    , memory;
+
+  if (!attached) return {};
 
   //
   // Try to read out the `performance` information from the iframe.
@@ -156,15 +160,26 @@ Container.prototype.inspect = function inspect() {
   memory = memory || {};
 
   return {
-    state: this.readyState,
-    uptime: +new Date() - this.started,
-    attached: !!document.getElementById(this.id),
+    readyState: this.readyState,
+    retries: this.reties,
+    uptime: this.started ? (+date) - this.started : 0,
+    date: date,
     memory: {
       limit: memory.jsHeapSizeLimit || 0,
       total: memory.totalJSHeapSize || 0,
       used: memory.usedJSHeapSize || 0
     }
   };
+};
+
+/**
+ * Checks if the iframe is currently attached to the DOM.
+ *
+ * @returns {Boolean} The container is attached to the mount point.
+ * @api private
+ */
+Container.prototype.attached = function attached() {
+  return !!document.getElementById(this.id);
 };
 
 /**
@@ -271,13 +286,15 @@ Container.prototype.onmessage = function onmessage(packet) {
  * @api public
  */
 Container.prototype.eval = function evil(cmd, fn) {
+  var data;
+
   try {
-    this.i.window.eval(cmd);
+    data = this.i.window.eval(cmd);
   } catch (e) {
     return fn(e);
   }
 
-  return fn();
+  return fn(undefined, data);
 };
 
 /**
@@ -308,6 +325,7 @@ Container.prototype.start = function start() {
   // single event listener.
   //
   this.i.window.onerror = this.bound(this.onerror);
+  this.started = +new Date();
 
   //
   // If the container is already in the HTML we're going to assume that we still
@@ -316,7 +334,7 @@ Container.prototype.start = function start() {
   // but when we re-add it to the mount point, it will automatically restart the
   // JavaScript that was originally loaded in the container.
   //
-  if (!document.getElementById(this.id)) {
+  if (!this.attached()) {
     this.mount.appendChild(this.i.frame);
     this.i.window[this.id] = this.bound(this.onmessage);
   } else {
@@ -328,13 +346,6 @@ Container.prototype.start = function start() {
     doc.close();
   }
 
-  //
-  // Introduce a custom variable in to the iframe that exposes our Container as
-  // API. The Image can use this to communicate with the container and pass
-  // messages back and forth.
-  //
-  this.started = +new Date();
-
   return this;
 };
 
@@ -345,7 +356,7 @@ Container.prototype.start = function start() {
  * @api private
  */
 Container.prototype.stop = function stop() {
-  if (!document.getElementById(this.id)) return this;
+  if (!this.attached()) return this;
 
   this.readyState = Container.CLOSING;
   this.mount.removeChild(this.i.frame);
@@ -390,6 +401,8 @@ Container.prototype.destroy = function destroy() {
   // Remove all possible references to release as much memory as possible.
   //
   this.mount = this.image = this.id = this.i = this.created = null;
+  this.console.length = 0;
+
   this.removeAllListeners();
 
   return this;
