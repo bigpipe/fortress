@@ -1,28 +1,30 @@
 'use strict';
 
 /**
- * The Image that is loaded on to the container.
+ * The BaseImage that is loaded on to the container.
  *
  * @constructor
  * @param {String} id The id of the container.
  * @param {String} source The actual code.
  * @api private
  */
-function Image(id, source) {
+function BaseImage(id, source) {
+  if (!(this instanceof BaseImage)) return new BaseImage(id, source);
+
   this.compiled = null;
   this.source = source;
   this.id = id;
 }
 
 /**
- * Assume that the source of the Image is loaded using toString() so it will be
- * automatically transformed when the Image instance is concatenated or added to
+ * Assume that the source of the BaseImage is loaded using toString() so it will be
+ * automatically transformed when the BaseImage instance is concatenated or added to
  * the DOM.
  *
  * @returns {String}
  * @api public
  */
-Image.prototype.toString = function toString() {
+BaseImage.prototype.toString = function toString() {
   if (this.compiled) return this.compiled;
   return this.compiled = this.transform();
 };
@@ -35,7 +37,7 @@ Image.prototype.toString = function toString() {
  * @returns {String}
  * @api private
  */
-Image.prototype.transform = function transform() {
+BaseImage.prototype.transform = function transform() {
   var code = ('('+ (function fort(global) {
     /**
      * Simple helper function to do nothing.
@@ -43,7 +45,25 @@ Image.prototype.transform = function transform() {
      * @type {Function}
      * @api private
      */
-    function noop() {}
+    function noop() { /* I do nothing useful */ }
+
+    /**
+     * AddListener polyfill
+     *
+     * @param {Mixed} thing What ever we want to listen on.
+     * @param {String} evt The event we're listening for.
+     * @param {Function} fn The function that gets executed.
+     * @api private
+     */
+    function on(thing, evt, fn) {
+      if (thing.addEventListener) {
+        thing.addEventListener(evt, fn, false);
+      } else if (on.attachEvent) {
+        thing.attachEvent('on'+ evt, fn);
+      }
+
+      return { on: on };
+    }
 
     //
     // Force the same domain as our 'root' script.
@@ -96,6 +116,9 @@ Image.prototype.transform = function transform() {
     /**
      * Helper method to polyfill our global console method so we can proxy it's
      * usage to the
+     *
+     * @param {String} method The console method we want to polyfill.
+     * @api private
      */
     function polyconsole(method) {
       var attach = { debug: 1, error: 1, log: 1, warn: 1 };
@@ -103,7 +126,7 @@ Image.prototype.transform = function transform() {
       //
       // Ensure that this host environment always has working console.
       //
-      global.console[method] = function () {
+      global.console[method] = function polyfilled() {
         var args = Array.prototype.slice.call(arguments, 0);
 
         //
@@ -136,23 +159,34 @@ Image.prototype.transform = function transform() {
     // http://www.nczonline.net/blog/2009/01/05/what-determines-that-a-script-is-long-running/
     //
     setInterval(function ping() {
-      this._fortress_id({ type: 'ping' });
+      this._fortress_id_({ type: 'ping' });
     }, 1000);
 
     //
-    // All boilerplate code has been loaded, execute the actual code. After
-    // a slight delay so we update the window with a reference to our own
-    // container.
+    // Add load and unload listeners so we know when the iframe is alive and
+    // dead.
     //
-    setTimeout(this.fort, 0);
+    on(global, 'unload', function unload() {
+      this._fortress_id_({ type: 'unload' });
+    }).on(global, 'load', function () {
+      this._fortress_id_({ type: 'load' });
+    });
+
+    //
+    // Ideally we load this code after our `load` event so we know that our own
+    // bootstrapping has been loaded completely. But the problem is that we
+    // actually cause full browser crashes in chrome when we execute this.
+    //
+    try { this.fort(); }
+    catch (e) { this._fortress_id_({ type: 'error', scope: 'iframe.start', args: [e] }); }
   })+').call({}, this)');
 
   //
   // Replace our "template tags" with the actual content.
   //
   code = code
-    .replace(/_fortress_domain_/, document.domain)
-    .replace(/this\._fortress_id_/, this.id);
+    .replace(/_fortress_domain_/g, document.domain)
+    .replace(/this\._fortress_id_/g, this.id);
 
   //
   // Add the source on the first line so the stack traces that are returned from
@@ -165,4 +199,4 @@ Image.prototype.transform = function transform() {
     + code.slice(curly);
 };
 
-module.exports = Image;
+module.exports = BaseImage;

@@ -2,6 +2,7 @@
 
 var EventEmitter = require('eventemitter3')
   , Container = require('./container')
+  , BaseImage = require('./image')
   , iframe = require('./iframe');
 
 /**
@@ -330,7 +331,7 @@ Fortress.stringify = function stringify(code, transfer) {
 // Expose our Container and Image so it can be extended by third party.
 //
 Fortress.Container = Container;
-Fortress.Image = Image;
+Fortress.Image = BaseImage;
 
 //
 // Expose the module.

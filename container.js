@@ -3,7 +3,7 @@
 var EventEmitter = require('eventemitter3')
   , slice = Array.prototype.slice
   , iframe = require('./iframe')
-  , Image = require('./image');
+  , BaseImage = require('./image');
 
 /**
  * Representation of a single container.
@@ -24,6 +24,11 @@ var EventEmitter = require('eventemitter3')
  * @api private
  */
 function Container(mount, id, code, options) {
+  if ('object' === typeof code) {
+    options = code;
+    code = null;
+  }
+
   options = options || {};
 
   this.i = iframe(mount, id);         // The generated iframe.
@@ -40,8 +45,8 @@ function Container(mount, id, code, options) {
     : 3;
 
   this.timeout = 'timeout' in options // Ping timeout before we reboot.
-    ? +options.timeout || 1000
-    : 1000;
+    ? +options.timeout || 1050
+    : 1050;
 
   //
   // Initialise as an EventEmitter before we start loading in the code.
@@ -78,10 +83,14 @@ Container.OPEN    = 4;
 Container.prototype.ping = function ping() {
   if (this.pong) clearTimeout(this.pong);
 
-  this.pong = setTimeout(this.bound(function pong() {
-    this.onmessage({ type: "error", scope: "iframe.timeout", args: [
-      'the iframe is no longer responding with ping packets'
-    ] });
+  this.pong = setTimeout(this.bound(
+    this.onmessage,
+    {
+      type: "error",
+      scope: "iframe.timeout",
+      args: [
+        new Error('the iframe is no longer responding with ping packets')
+      ]
   }), this.timeout);
 
   return this;
@@ -205,8 +214,8 @@ Container.prototype.onmessage = function onmessage(packet) {
       });
 
       if (packet.attach) {
-        this.emit.apply(this, ['attach::'+ packet.method].conat(packet.args));
-        this.emit.apply(this, ['attach'].conat(packet.args));
+        this.emit.apply(this, ['attach::'+ packet.method].concat(packet.args));
+        this.emit.apply(this, ['attach'].concat(packet.args));
       }
     break;
 
@@ -214,7 +223,24 @@ Container.prototype.onmessage = function onmessage(packet) {
     // An error happened in the iframe, process it.
     //
     case 'error':
-      this.emit('error', new Error(packet.args[0])).retry();
+      this.emit('error', new Error(packet.args[0]));
+      this.retry();
+    break;
+
+    //
+    // The iframe and it's code has been loaded.
+    //
+    case 'load':
+      this.readyState = Container.OPEN;
+      this.emit('start');
+    break;
+
+    //
+    // The iframe is unloading, attaching
+    //
+    case 'unload':
+      this.readyState = Container.CLOSED;
+      this.emit('stop');
     break;
 
     //
@@ -262,27 +288,7 @@ Container.prototype.eval = function evil(cmd, fn) {
  */
 Container.prototype.onerror = function onerror() {
   var a = slice.call(arguments, 0);
-  this.onmessage({ type: "error", scope: "iframe.onerror", args: a });
-
-  return true;
-};
-
-/**
- * The container has been fully loaded and the iframe has executed it's code.
- *
- * @returns {Boolean}
- * @api private
- */
-Container.prototype.onload = function onload() {
-  this.readyState = Container.OPEN;
-  this.emit('start');
-
-  return true;
-};
-
-Container.prototype.onunload = function onunload() {
-  this.readyState = Container.CLOSED;
-  this.emit('stop');
+  this.onmessage({ type: 'error', scope: 'iframe.onerror', args: a });
 
   return true;
 };
@@ -302,8 +308,6 @@ Container.prototype.start = function start() {
   // single event listener.
   //
   this.i.window.onerror = this.bound(this.onerror);
-  this.i.frame.onload = this.bound(this.onload);
-  this.i.frame.onunload = this.bound(this.unload);
 
   //
   // If the container is already in the HTML we're going to assume that we still
@@ -314,9 +318,11 @@ Container.prototype.start = function start() {
   //
   if (!document.getElementById(this.id)) {
     this.mount.appendChild(this.i.frame);
+    this.i.window[this.id] = this.bound(this.onmessage);
   } else {
-    var doc = this.i.document;
+    this.i.window[this.id] = this.bound(this.onmessage);
 
+    var doc = this.i.document;
     doc.open();
     doc.write('<!doctype html><html><s'+'cript>'+ this.image +'</s'+'cript></html>');
     doc.close();
@@ -327,7 +333,6 @@ Container.prototype.start = function start() {
   // API. The Image can use this to communicate with the container and pass
   // messages back and forth.
   //
-  this.i.window[this.id] = this.bound(this.onmessage);
   this.started = +new Date();
 
   return this;
@@ -343,20 +348,17 @@ Container.prototype.stop = function stop() {
   if (!document.getElementById(this.id)) return this;
 
   this.readyState = Container.CLOSING;
-  this.i.window[this.id] = null;
   this.mount.removeChild(this.i.frame);
 
-  //
-  // Known to throw errors in certain situations (IE)
-  //
-  try { this.i.frame.onload = null; }
-  catch (e) {}
-
-  try { this.i.frame.onunload = null; }
-  catch (e) {}
-
   try { this.i.window.onerror = null; }
-  catch (e) {}
+  catch (e) { /* Known to throw errors in certain situations (IE) */ }
+
+  //
+  // It's super important that this removed AFTER we've cleaned up all other
+  // references as we might need to communicate back to our container when we
+  // are unloading or when an `unload` event causes an error.
+  //
+  this.i.window[this.id] = null;
 
   return this;
 };
@@ -369,7 +371,7 @@ Container.prototype.stop = function stop() {
  * @api public
  */
 Container.prototype.load = function load(code) {
-  this.image = new Image(this.id, code);
+  this.image = new BaseImage(this.id, code);
 
   return this;
 };

@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "zuul -- test.js",
-    "local": "zuul --local 1337 -- test.js"
+    "local": "zuul --local 1337 -- test.js",
+    "build": "browserify index.js --standalone Fortress -o ./dist/fortress.js"
   },
   "keywords": [
     "sandbox",
@@ -27,7 +28,8 @@
   "devDependencies": {
     "pre-commit": "0.0.4",
     "mocha": "~1.14.0",
-    "zuul": "~1.0.4"
+    "zuul": "~1.0.4",
+    "browserify": "~3.0.0"
   },
   "dependencies": {
     "eventemitter3": "0.0.1"
