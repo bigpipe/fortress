@@ -121,6 +121,7 @@ Container.prototype.retry = function retry() {
     // No more attempts left.
     //
     case 0:
+      this.stop();
       this.emit('end');
     return;
 
@@ -146,17 +147,16 @@ Container.prototype.retry = function retry() {
  * @api public
  */
 Container.prototype.inspect = function inspect() {
-  var attached = this.attached()
-    , date = new Date()
-    , memory;
+  if (!this.i.attached()) return {};
 
-  if (!attached) return {};
+  var date = new Date()
+    , memory;
 
   //
   // Try to read out the `performance` information from the iframe.
   //
-  if (this.i.window && this.i.window.performance) {
-    memory = this.i.window.performance.memory;
+  if (this.i.window() && this.i.window().performance) {
+    memory = this.i.window().performance.memory;
   }
 
   memory = memory || {};
@@ -174,15 +174,6 @@ Container.prototype.inspect = function inspect() {
   };
 };
 
-/**
- * Checks if the iframe is currently attached to the DOM.
- *
- * @returns {Boolean} The container is attached to the mount point.
- * @api private
- */
-Container.prototype.attached = function attached() {
-  return !!document.getElementById(this.id);
-};
 
 /**
  * Parse and process incoming messages from the iframe. The incoming messages
@@ -222,7 +213,7 @@ Container.prototype.onmessage = function onmessage(packet) {
     // An error happened in the iframe, process it.
     //
     case 'error':
-      var failure = new Error(packet.args[0]);
+      var failure = packet.args[0].stack ? packet.args[0] : new Error(packet.args[0]);
       failure.scope = packet.scope || 'generic';
 
       this.emit('error', failure);
@@ -277,7 +268,7 @@ Container.prototype.eval = function evil(cmd, fn) {
   var data;
 
   try {
-    data = this.i.window.eval(cmd);
+    data = this.i.add().window().eval(cmd);
   } catch (e) {
     return fn(e);
   }
@@ -294,9 +285,6 @@ Container.prototype.eval = function evil(cmd, fn) {
 Container.prototype.start = function start() {
   this.readyState = Container.OPENING;
 
-  var self = this
-    , doc;
-
   /**
    * Simple argument proxy.
    *
@@ -306,26 +294,30 @@ Container.prototype.start = function start() {
     self.onmessage.apply(self, arguments);
   }
 
+  //
+  // We can only write to the iframe if it's actually in the DOM. The `i.add()`
+  // method ensures that the iframe is added to the DOM.
+  //
+  this.i.add();
   this.started = +new Date();
+  this.run = this.run ? ++this.run : 1;
+
+  var doc = this.i.document()
+    , self = this;
+
+  doc = this.i.document();
+  this.i.window()[this.id] = onmessage;
 
   //
-  // If the container is already in the HTML we're going to assume that we still
-  // have to load it with the Image. But if it's not in the mount point (DOM) we
-  // assume that the iframe has been removed to release memory and what ever,
-  // but when we re-add it to the mount point, it will automatically restart the
-  // JavaScript that was originally loaded in the container.
+  // Code loading is an sync process, but this COULD cause huge stack traces
+  // and really odd feedback loops in the stack trace. So we deliberately want
+  // to destroy the stacktrace here.
   //
-  if (!this.attached()) {
-    this.mount.appendChild(this.i.frame);
-    this.i.window[this.id] = onmessage;
-  } else {
-    this.i.window[this.id] = onmessage;
-
-    doc = this.i.document;
+  setTimeout(function async() {
     doc.open();
-    doc.write('<!doctype html><html><s'+'cript>'+ this.image +'</s'+'cript></html>');
+    doc.write('<!doctype html><html><s'+'cript>'+ self.image +'</s'+'cript></html>');
     doc.close();
-  }
+  }, 0);
 
   return this;
 };
@@ -337,17 +329,15 @@ Container.prototype.start = function start() {
  * @api private
  */
 Container.prototype.stop = function stop() {
-  if (!this.attached()) return this;
-
   this.readyState = Container.CLOSING;
-  this.mount.removeChild(this.i.frame);
+  this.i.remove();
 
   //
   // It's super important that this removed AFTER we've cleaned up all other
   // references as we might need to communicate back to our container when we
   // are unloading or when an `unload` event causes an error.
   //
-  this.i.window[this.id] = null;
+  this.i.window()[this.id] = null;
 
   //
   // Clear the timeout, so we don't trigger ping timeout errors.
@@ -378,6 +368,7 @@ Container.prototype.load = function load(code) {
  * @api private
  */
 Container.prototype.destroy = function destroy() {
+  if (!this.i) return this;
   this.stop();
 
   //

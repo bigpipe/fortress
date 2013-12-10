@@ -49,17 +49,69 @@ function iframe(el, id, options) {
     'allow-popups',
     'allow-forms'
   ]).join(' '));
+
   i.id = id;
 
-  //
-  // Insert before first child to avoid `Operation Aborted` error in IE6.
-  //
-  el.insertBefore(i, el.firstChild);
-
   return {
-    document: i.contentDocument || i.contentWindow.document,
-    window: i.contentWindow || i.contentDocument.parentWindow,
-    frame: i
+    /**
+     * Return the document which we can use to inject or modify the HTML.
+     *
+     * @returns {Document}
+     * @api public
+     */
+    document: function doc() {
+      return this.window().document;
+    },
+
+    /**
+     * Return the global or the window from the iframe.
+     *
+     * @returns {Window}
+     * @api public
+     */
+    window: function win() {
+      return i.contentWindow || (i.contentDocument
+        ? i.contentDocument.parentWindow || {}
+        : {}
+      );
+    },
+
+    /**
+     * Add the iframe to the DOM, use insertBefore first child to avoid
+     * `Operation Aborted` error in IE6.
+     *
+     * @api public
+     */
+    add: function add() {
+      if (!this.attached()) {
+        el.insertBefore(i, el.firstChild);
+      }
+
+      return this;
+    },
+
+    /**
+     * Remove the iframe from the DOM.
+     *
+     * @api public
+     */
+    remove: function remove() {
+      if (this.attached()) {
+        el.removeChild(i);
+      }
+
+      return this;
+    },
+
+    /**
+     * Checks if the iframe is currently attached to the DOM.
+     *
+     * @returns {Boolean} The container is attached to the mount point.
+     * @api private
+     */
+    attached: function attached() {
+      return !!document.getElementById(id);
+    }
   };
 }
 

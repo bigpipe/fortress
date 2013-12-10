@@ -63,15 +63,16 @@ catch (e) {}
  */
 Fortress.prototype.globals = function globals(old) {
   var i = iframe(this.mount, Date.now())
+    , windoh = i.add().window()
     , global = this.global;
 
-  this.mount.removeChild(i.frame);
+  i.remove();
 
   //
   // Detect the globals and return them.
   //
   return Object.keys(global).filter(function filter(key) {
-    var introduced = !(key in i.window);
+    var introduced = !(key in windoh);
 
     //
     // We've been given an array, so we should use that as the source of previous

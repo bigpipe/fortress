@@ -7,6 +7,8 @@ var EventEmitter = require('eventemitter3')
   , assert = require('assert')
   , Images = Fortress.Image;
 
+window.mocha.checkLeaks = false;
+
 //
 // Fixtures.
 //
@@ -216,7 +218,7 @@ describe('Container', function () {
       container.on('error', function (e) {
         var end = new Date() - start;
 
-        assert.ok(end > 40, 'should have taken longer than 40 ms');
+        assert.ok(end >= 40, 'should have taken longer than 40 ms');
         assert.ok(end < 100, 'and less then 100');
         assert.ok(e instanceof Error, 'instance of');
         assert.ok(e.message.indexOf('iframe') > -1, 'correct message');
@@ -229,6 +231,22 @@ describe('Container', function () {
   });
 
   describe('#retry', function () {
+    it('honors the retries limit', function (done) {
+      var retries = 0;
+      container.retries = 4;
+
+      container.on('retry', function () {
+        retries++;
+      });
+
+      container.once('end', function () {
+        assert.equal(retries, 4);
+        done();
+      });
+
+      container.load(fixture.throws).start();
+    });
+
     it('emits `retry` after each attempt');
     it('recreates the iframe on the last retry');
     it('emits `end` after the last retry');
