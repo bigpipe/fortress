@@ -198,14 +198,14 @@ Container.prototype.onmessage = function onmessage(packet) {
     //
     case 'console':
       this.console.push({
-        method: packet.method,
+        scope: packet.scope,
         epoch: +new Date(),
         args: packet.args
       });
 
       if (packet.attach) {
-        this.emit.apply(this, ['attach::'+ packet.method].concat(packet.args));
-        this.emit.apply(this, ['attach', packet.method].concat(packet.args));
+        this.emit.apply(this, ['attach::'+ packet.scope].concat(packet.args));
+        this.emit.apply(this, ['attach', packet.scope].concat(packet.args));
       }
     break;
 
@@ -224,16 +224,20 @@ Container.prototype.onmessage = function onmessage(packet) {
     // The iframe and it's code has been loaded.
     //
     case 'load':
-      this.readyState = Container.OPEN;
-      this.emit('start');
+      if (this.readyState !== Container.OPEN) {
+        this.readyState = Container.OPEN;
+        this.emit('start');
+      }
     break;
 
     //
     // The iframe is unloading, attaching
     //
     case 'unload':
-      this.readyState = Container.CLOSED;
-      this.emit('stop');
+      if (this.readyState !== Container.CLOSED) {
+        this.readyState = Container.CLOSED;
+        this.emit('stop');
+      }
     break;
 
     //
@@ -309,14 +313,40 @@ Container.prototype.start = function start() {
   this.i.window()[this.id] = onmessage;
 
   //
+  // AddEventListener
+  //
+  this.i.frame.onload = function onload() {
+    // self.onmessage({ type: 'load', scope: 'external' });
+  };
+
+  this.i.frame.onunload = function onunload() {
+    self.onmessage({ type: 'unload', scope: 'external' });
+  };
+
+  //
   // Code loading is an sync process, but this COULD cause huge stack traces
   // and really odd feedback loops in the stack trace. So we deliberately want
   // to destroy the stacktrace here.
   //
   setTimeout(function async() {
+    //
+    // No doc.open, the iframe has already been destroyed!
+    //
+    if (!doc.open || !self.i) return;
+
     doc.open();
-    doc.write('<!doctype html><html><s'+'cript>'+ self.image +'</s'+'cript></html>');
-    doc.close();
+    doc.write('<!doctype html><html></html>');
+    self.eval(self.image.toString(), function evil() {
+      /* @TODO: handle error argument */
+    });
+
+    //
+    // If executing the code results to an error we could actually be stopping
+    // and removing the iframe from the source before we're able to close it.
+    // This is because executing the code inside the iframe is actually an sync
+    // operation.
+    //
+    if (doc.close) doc.close();
   }, 0);
 
   return this;

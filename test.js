@@ -17,7 +17,7 @@ var fixture = {
   , blocking: 'alert("foo"); confirm("bar"); prompt("baz");'
   , throws: 'throw new Error("error thrown")'
   , freeze: 'while(true) { if (window.bar) break; }'
-  , recursive: 'function x(a) { foo(a++) } function foo(a) { x(a++) } x(10);'
+  , recursive: 'setTimeout(function () { function x(a) { foo(a++) } function foo(a) { x(a++) } x(10);}, 500)'
 };
 
 describe('Fortress', function () {
@@ -255,6 +255,7 @@ describe('Container', function () {
   describe('#inspect', function () {
     it('can inspect a running container', function (done) {
       container.on('start', function () {
+        console.log('The container has started');
         container.inspect();
         done();
       }).load(fixture.console).start();
@@ -318,32 +319,32 @@ describe('Container', function () {
 
     it('stores console messages', function () {
       assert.equal(container.console.length, 0, 'no active console messages');
-      container.onmessage({ type: 'console', method: 'log', args: ['foo'] });
+      container.onmessage({ type: 'console', scope: 'log', args: ['foo'] });
       assert.equal(container.console.length, 1, '1 active console message');
       assert.equal(container.console[0].args[0], 'foo');
     });
 
     it('emits `attach` events for packet.attach & log types', function (done) {
-      container.on('attach', function (method, data) {
-        assert.equal(method, 'log');
+      container.on('attach', function (scope, data) {
+        assert.equal(scope, 'log');
         assert.equal(data, 'foo');
 
         done();
       }).onmessage({
         type: 'console',
-        method: 'log',
+        scope: 'log',
         args: ['foo'],
         attach: true
       });
     });
 
-    it('emits `attach::method` for packet.attach & log types', function (done) {
+    it('emits `attach::scope` for packet.attach & log types', function (done) {
       container.on('attach::log', function (data) {
         assert.equal(data, 'foo');
         done();
       }).onmessage({
         type: 'console',
-        method: 'log',
+        scope: 'log',
         args: ['foo'],
         attach: true
       });
@@ -465,5 +466,29 @@ describe('Image', function () {
   it('stores the source', function () {
     var image = new Images('dingdong', source);
     assert.equal(image.source, source);
+  });
+});
+
+describe('Code execution', function () {
+  return;
+
+  var container
+    , id = 0;
+
+  beforeEach(function () {
+    container = new Container(document.body, 'test_'+ id++);
+  });
+
+  afterEach(function () {
+    container.destroy();
+  });
+
+  it('breaks prevents recursive code crashes using iframe timeout', function (done) {
+    container.once('error', function (err) {
+      assert.ok(!!err.scope, 'it has a scope');
+      done();
+    });
+
+    container.load(fixture.recursive).start();
   });
 });

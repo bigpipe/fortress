@@ -111,7 +111,15 @@ function iframe(el, id, options) {
      */
     attached: function attached() {
       return !!document.getElementById(id);
-    }
+    },
+
+    /**
+     * Reference to the iframe element.
+     *
+     * @type {HTMLIFRAMEElement}
+     * @public
+     */
+    frame: i
   };
 }
 

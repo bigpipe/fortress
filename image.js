@@ -39,6 +39,14 @@ BaseImage.prototype.toString = function toString() {
  */
 BaseImage.prototype.transform = function transform() {
   var code = ('('+ (function fort(global) {
+    //
+    // When you toString a function which is created while in strict mode,
+    // firefox will add "use strict"; to the body of the function. Chrome leaves
+    // the source intact. Knowing this, we cannot blindly assume that we can
+    // inject code after the first opening bracked `{`.
+    //
+    this.fort();
+
     /**
      * Simple helper function to do nothing.
      *
@@ -73,7 +81,8 @@ BaseImage.prototype.transform = function transform() {
     //
     // Prevent common iframe detection scripts that do frame busting.
     //
-    global.top = global.self = global.parent = global;
+    try { global.top = global.self = global.parent = global; }
+    catch (e) { /* Damn, read-only */ }
 
     //
     // Add a error listener. Adding it on the iframe it self doesn't make it
@@ -85,6 +94,7 @@ BaseImage.prototype.transform = function transform() {
     global.onerror = function onerror() {
       var a = Array.prototype.slice.call(arguments, 0);
       this._fortress_id_({ type: 'error', scope: 'window.onerror', args: a });
+      return true;
     };
 
     //
@@ -176,26 +186,22 @@ BaseImage.prototype.transform = function transform() {
     // bootstrapping has been loaded completely. But the problem is that we
     // actually cause full browser crashes in chrome when we execute this.
     //
-    try { this.fort(); }
-    catch (e) { this._fortress_id_({ type: 'error', scope: 'iframe.start', args: [e] }); }
+    var self = this;
+    setTimeout(function timeout() {
+      try { self.fort(); }
+      catch (e) {
+        this._fortress_id_({ type: 'error', scope: 'iframe.start', args: [e] });
+      }
+    }, 0);
   })+').call({}, this)');
 
   //
   // Replace our "template tags" with the actual content.
   //
-  code = code
+  return code
     .replace(/_fortress_domain_/g, document.domain)
-    .replace(/this\._fortress_id_/g, this.id);
-
-  //
-  // Add the source on the first line so the stack traces that are returned from
-  // errors still have the correct line numbers. By doing an indexOf on the
-  // source we can get the first opening bracket and append the source to it.
-  //
-  var curly = code.indexOf('{') + 1;
-  return code.slice(0, curly)
-    + 'this.fort=function fort() {'+ this.source +'};'
-    + code.slice(curly);
+    .replace(/this\._fortress_id_/g, this.id)
+    .replace(/this\.fort\(\);/g, 'this.fort=function fort() {'+ this.source +'};');
 };
 
 module.exports = BaseImage;
