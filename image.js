@@ -85,7 +85,6 @@ BaseImage.prototype.transform = function transform() {
     global.onerror = function onerror() {
       var a = Array.prototype.slice.call(arguments, 0);
       this._fortress_id_({ type: 'error', scope: 'window.onerror', args: a });
-      return true;
     };
 
     //

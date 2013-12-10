@@ -192,8 +192,40 @@ describe('Container', function () {
   });
 
   describe('#ping', function () {
-    it('sets a new ping timeout for the given timeout');
-    it('produces an error when the iframe times out');
+    it('sets a new ping timeout for the given timeout', function (done) {
+      container.timeout = 100;
+
+      container.on('error', function () {
+        throw new Error('I shouldnt not error');
+      }).ping();
+
+      setTimeout(function () {
+        container.ping();
+      }, 90);
+
+      setTimeout(function () {
+        container.stop();
+        done();
+      }, 150);
+    });
+
+    it('produces an error when the iframe times out', function (done) {
+      container.timeout = 40;
+
+      var start = new Date();
+      container.on('error', function (e) {
+        var end = new Date() - start;
+
+        assert.ok(end > 40, 'should have taken longer than 40 ms');
+        assert.ok(end < 100, 'and less then 100');
+        assert.ok(e instanceof Error, 'instance of');
+        assert.ok(e.message.indexOf('iframe') > -1, 'correct message');
+
+        done();
+      });
+
+      container.ping();
+    });
   });
 
   describe('#retry', function () {
@@ -217,13 +249,11 @@ describe('Container', function () {
         var stats = container.inspect()
           , end = (+new Date()) - start;
 
-        assert.ok(stats.uptime < end);
-        assert.ok(stats.uptime > 0);
-
-        // Enabling these three checks causes chrome to stop the test.
-        // assert.equal(stats.readyState, Container.OPEN);
-        // assert.ok(stats.date instanceof Date);
-        // assert.equal(stats.retires, container.retries);
+        assert.ok(stats.uptime <= end, 'took longer than expected');
+        assert.ok(stats.uptime > 0, 'no uptime');
+        assert.equal(stats.readyState, Container.OPEN, 'incorrect readystate');
+        assert.ok(stats.date instanceof Date, 'not a valid date');
+        assert.equal(stats.retries, container.retries, 'a retry happend');
 
         done();
       }).load(fixture.console).start();
@@ -253,41 +283,6 @@ describe('Container', function () {
 
         done();
       }).load(fixture.console).start();
-    });
-  });
-
-  describe('#bound', function () {
-    it('binds the given function', function (done) {
-      function foo() {
-        assert.equal(this, container);
-
-        done();
-      }
-
-      container.bound(foo)();
-    });
-
-    it('allows optional context', function (done) {
-      function foo() {
-        assert.equal(this, 1);
-
-        done();
-      }
-
-      container.bound(foo, 1)();
-    });
-
-    it('currys the args', function (done) {
-      function foo(arg1, arg2, arg3) {
-        assert.equal(this, 1);
-        assert.equal(arg1, 'foo');
-        assert.equal(arg2, 'bar');
-        assert.equal(arg3, 'baz');
-
-        done();
-      }
-
-      container.bound(foo, 1, 'foo', 'bar')('baz');
     });
   });
 
@@ -358,7 +353,17 @@ describe('Container', function () {
       });
     });
 
-    it('restarts the ping squence with a ping packet');
+    it('restarts the ping sequence with a ping packet', function (done) {
+      assert.ok(!container.pong);
+      container.on('ping', function () {
+        assert.ok(!!container.pong);
+
+        container.stop();
+        done();
+      }).onmessage({
+        type: 'ping'
+      });
+    });
   });
 
   describe('#eval', function () {

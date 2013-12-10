@@ -39,9 +39,10 @@ function Container(mount, id, code, options) {
 
   this.created = +new Date();         // Creation EPOCH.
   this.started = null;                // Start EPOCH.
+  this.pong = null;                   // Stores our ping timeout.
 
   this.retries = 'retries' in options // How many times should we reload
-    ? +options.reties || 3
+    ? +options.retries || 3
     : 3;
 
   this.timeout = 'timeout' in options // Ping timeout before we reboot.
@@ -83,15 +84,16 @@ Container.OPEN    = 4;
 Container.prototype.ping = function ping() {
   if (this.pong) clearTimeout(this.pong);
 
-  this.pong = setTimeout(this.bound(
-    this.onmessage,
-    {
-      type: "error",
-      scope: "iframe.timeout",
+  var self = this;
+  this.pong = setTimeout(function pong() {
+    self.onmessage({
+      type: 'error',
+      scope: 'iframe.timeout',
       args: [
-        new Error('the iframe is no longer responding with ping packets')
+        'the iframe is no longer responding with ping packets'
       ]
-  }), this.timeout);
+    });
+  }, this.timeout);
 
   return this;
 };
@@ -161,7 +163,7 @@ Container.prototype.inspect = function inspect() {
 
   return {
     readyState: this.readyState,
-    retries: this.reties,
+    retries: this.retries,
     uptime: this.started ? (+date) - this.started : 0,
     date: date,
     memory: {
@@ -180,26 +182,6 @@ Container.prototype.inspect = function inspect() {
  */
 Container.prototype.attached = function attached() {
   return !!document.getElementById(this.id);
-};
-
-/**
- * Bind, without the .bind. This ensures that callbacks and functions are called
- * with the correct context.
- *
- * @param {Function} method The method that we should bind to.
- * @param {Mixed} context The context of the method, default to `this`
- * @returns {Function} Function that calls the method with the given context.
- * @api private
- */
-Container.prototype.bound = function bound(method, context) {
-  method = method || function noop() {};  // default to noop.
-  context = context || this;              // default to `this`.
-
-  var args = slice.call(arguments, 2);
-
-  return function binded() {
-    return method.apply(context, args.concat(slice.call(arguments, 0)));
-  };
 };
 
 /**
@@ -240,7 +222,10 @@ Container.prototype.onmessage = function onmessage(packet) {
     // An error happened in the iframe, process it.
     //
     case 'error':
-      this.emit('error', new Error(packet.args[0]));
+      var failure = new Error(packet.args[0]);
+      failure.scope = packet.scope || 'generic';
+
+      this.emit('error', failure);
       this.retry();
     break;
 
@@ -266,6 +251,7 @@ Container.prototype.onmessage = function onmessage(packet) {
     //
     case 'ping':
       this.ping();
+      this.emit('ping');
     break;
 
     //
@@ -300,19 +286,6 @@ Container.prototype.eval = function evil(cmd, fn) {
 };
 
 /**
- * Error handling.
- *
- * @returns {Boolean}
- * @api private
- */
-Container.prototype.onerror = function onerror() {
-  var a = slice.call(arguments, 0);
-  this.onmessage({ type: 'error', scope: 'iframe.onerror', args: a });
-
-  return true;
-};
-
-/**
  * Start the container.
  *
  * @returns {Container}
@@ -321,12 +294,18 @@ Container.prototype.onerror = function onerror() {
 Container.prototype.start = function start() {
   this.readyState = Container.OPENING;
 
-  //
-  // Attach various event listeners so we can update the state of the container.
-  // We don't need to use `.addEventLister` as we only want and require one
-  // single event listener.
-  //
-  this.i.window.onerror = this.bound(this.onerror);
+  var self = this
+    , doc;
+
+  /**
+   * Simple argument proxy.
+   *
+   * @api private
+   */
+  function onmessage() {
+    self.onmessage.apply(self, arguments);
+  }
+
   this.started = +new Date();
 
   //
@@ -338,11 +317,11 @@ Container.prototype.start = function start() {
   //
   if (!this.attached()) {
     this.mount.appendChild(this.i.frame);
-    this.i.window[this.id] = this.bound(this.onmessage);
+    this.i.window[this.id] = onmessage;
   } else {
-    this.i.window[this.id] = this.bound(this.onmessage);
+    this.i.window[this.id] = onmessage;
 
-    var doc = this.i.document;
+    doc = this.i.document;
     doc.open();
     doc.write('<!doctype html><html><s'+'cript>'+ this.image +'</s'+'cript></html>');
     doc.close();
@@ -363,15 +342,17 @@ Container.prototype.stop = function stop() {
   this.readyState = Container.CLOSING;
   this.mount.removeChild(this.i.frame);
 
-  try { this.i.window.onerror = null; }
-  catch (e) { /* Known to throw errors in certain situations (IE) */ }
-
   //
   // It's super important that this removed AFTER we've cleaned up all other
   // references as we might need to communicate back to our container when we
   // are unloading or when an `unload` event causes an error.
   //
   this.i.window[this.id] = null;
+
+  //
+  // Clear the timeout, so we don't trigger ping timeout errors.
+  //
+  if (this.pong) clearTimeout(this.pong);
 
   return this;
 };
