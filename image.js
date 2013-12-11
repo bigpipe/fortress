@@ -76,7 +76,8 @@ BaseImage.prototype.transform = function transform() {
     //
     // Force the same domain as our 'root' script.
     //
-    document.domain = '_fortress_domain_';
+    try { document.domain = '_fortress_domain_'; }
+    catch (e) { /* FireFox 26 throws an Security error for this as we use eval */ }
 
     //
     // Prevent common iframe detection scripts that do frame busting.
@@ -172,12 +173,9 @@ BaseImage.prototype.transform = function transform() {
     }, 1000);
 
     //
-    // Add load and unload listeners so we know when the iframe is alive and
-    // dead.
+    // Add load listeners so we know when the iframe is alive and working.
     //
-    on(global, 'unload', function unload() {
-      this._fortress_id_({ type: 'unload' });
-    }).on(global, 'load', function () {
+    on(global, 'load', function () {
       this._fortress_id_({ type: 'load' });
     });
 

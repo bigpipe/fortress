@@ -372,9 +372,9 @@ describe('Container', function () {
     });
 
     it('restarts the ping sequence with a ping packet', function (done) {
-      assert.ok(!container.pong);
+      assert.ok(!container.setTimeout.pong);
       container.on('ping', function () {
-        assert.ok(!!container.pong);
+        assert.ok(!!container.setTimeout.pong);
 
         container.stop();
         done();

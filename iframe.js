@@ -15,8 +15,16 @@
 function iframe(el, id, options) {
   'use strict';
 
-  options = options || {};
   var i;
+
+  options = options || {};
+  options.sandbox = options.sandbox || [
+    'allow-pointer-lock',
+    'allow-same-origin',
+    'allow-scripts',
+    'allow-popups',
+    'allow-forms'
+  ];
 
   try {
     //
@@ -42,13 +50,10 @@ function iframe(el, id, options) {
   }
 
   i.setAttribute('frameBorder', 0);
-  i.setAttribute('sandbox', (options.sandbox || [
-    'allow-pointer-lock',
-    'allow-same-origin',
-    'allow-scripts',
-    'allow-popups',
-    'allow-forms'
-  ]).join(' '));
+
+  if (options.sandbox.length) {
+    i.setAttribute('sandbox', (options.sandbox).join(' '));
+  }
 
   i.id = id;
 

@@ -34,12 +34,12 @@ function Container(mount, id, code, options) {
   this.i = iframe(mount, id);         // The generated iframe.
   this.mount = mount;                 // Mount point of the container.
   this.console = [];                  // Historic console.* output.
+  this.setTimeout = {};               // Stores our setTimeout references.
   this.id = id;                       // Unique id.
   this.readyState = Container.CLOSED; // The readyState of the container.
 
   this.created = +new Date();         // Creation EPOCH.
   this.started = null;                // Start EPOCH.
-  this.pong = null;                   // Stores our ping timeout.
 
   this.retries = 'retries' in options // How many times should we reload
     ? +options.retries || 3
@@ -82,10 +82,10 @@ Container.OPEN    = 4;
  * @api private
  */
 Container.prototype.ping = function ping() {
-  if (this.pong) clearTimeout(this.pong);
+  if (this.setTimeout.pong) clearTimeout(this.setTimeout.pong);
 
   var self = this;
-  this.pong = setTimeout(function pong() {
+  this.setTimeout.pong = setTimeout(function pong() {
     self.onmessage({
       type: 'error',
       scope: 'iframe.timeout',
@@ -289,6 +289,8 @@ Container.prototype.eval = function evil(cmd, fn) {
 Container.prototype.start = function start() {
   this.readyState = Container.OPENING;
 
+  var self = this;
+
   /**
    * Simple argument proxy.
    *
@@ -299,36 +301,13 @@ Container.prototype.start = function start() {
   }
 
   //
-  // We can only write to the iframe if it's actually in the DOM. The `i.add()`
-  // method ensures that the iframe is added to the DOM.
-  //
-  this.i.add();
-  this.started = +new Date();
-  this.run = this.run ? ++this.run : 1;
-
-  var doc = this.i.document()
-    , self = this;
-
-  doc = this.i.document();
-  this.i.window()[this.id] = onmessage;
-
-  //
-  // AddEventListener
-  //
-  this.i.frame.onload = function onload() {
-    // self.onmessage({ type: 'load', scope: 'external' });
-  };
-
-  this.i.frame.onunload = function onunload() {
-    self.onmessage({ type: 'unload', scope: 'external' });
-  };
-
-  //
   // Code loading is an sync process, but this COULD cause huge stack traces
   // and really odd feedback loops in the stack trace. So we deliberately want
-  // to destroy the stacktrace here.
+  // to destroy the stack trace here.
   //
-  setTimeout(function async() {
+  this.setTimeout.start = setTimeout(function async() {
+    var doc = self.i.document();
+
     //
     // No doc.open, the iframe has already been destroyed!
     //
@@ -339,10 +318,20 @@ Container.prototype.start = function start() {
     // event. Certain scripts might require in order to execute properly.
     //
     doc.open();
-    doc.write('<!doctype html>');
+    doc.write('<!doctype html>'); // Smallest, valid HTML5 document possible.
 
-    self.eval(self.image.toString(), function evil() {
-      /* @TODO: handle error argument */
+    //
+    // Introduce our messaging variable, this needs to be done before we eval
+    // our code. If we set this value before the setTimeout, it doesn't work in
+    // Opera due to reasons.
+    //
+    self.i.window()[self.id] = onmessage;
+    self.eval(self.image.toString(), function evil(err) {
+      if (err) return self.onmessage({
+        type: 'error',
+        scope: 'iframe.eval',
+        args: [ err ]
+      });
     });
 
     //
@@ -354,6 +343,13 @@ Container.prototype.start = function start() {
     if (doc.close) doc.close();
   }, 0);
 
+  //
+  // We can only write to the iframe if it's actually in the DOM. The `i.add()`
+  // method ensures that the iframe is added to the DOM.
+  //
+  this.i.add();
+  this.started = +new Date();
+
   return this;
 };
 
@@ -364,8 +360,17 @@ Container.prototype.start = function start() {
  * @api private
  */
 Container.prototype.stop = function stop() {
-  this.readyState = Container.CLOSING;
+  if (this.readyState !== Container.CLOSED && this.readyState !== Container.CLOSING) {
+    this.readyState = Container.CLOSING;
+  }
+
   this.i.remove();
+
+  //
+  // Opera doesn't support unload events. So adding an listener inside the
+  // iframe for `unload` doesn't work. This is the only way around it.
+  //
+  this.onmessage({ type: 'unload' });
 
   //
   // It's super important that this removed AFTER we've cleaned up all other
@@ -375,9 +380,12 @@ Container.prototype.stop = function stop() {
   this.i.window()[this.id] = null;
 
   //
-  // Clear the timeout, so we don't trigger ping timeout errors.
+  // Clear the timeouts.
   //
-  if (this.pong) clearTimeout(this.pong);
+  for (var timeout in this.setTimeout) {
+    clearTimeout(this.setTimeout[timeout]);
+    delete this.setTimeout[timeout];
+  }
 
   return this;
 };
