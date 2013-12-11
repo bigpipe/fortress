@@ -255,7 +255,6 @@ describe('Container', function () {
   describe('#inspect', function () {
     it('can inspect a running container', function (done) {
       container.on('start', function () {
-        console.log('The container has started');
         container.inspect();
         done();
       }).load(fixture.console).start();
@@ -288,17 +287,17 @@ describe('Container', function () {
       }
     });
 
+    if (typeof performance === 'undefined' || !performance.memory) return;
     it('returns the memory of the VM when the browser supports it', function (done) {
-      if (typeof performance === 'undefined') return;
-
       container.on('start', function () {
         var stats = container.inspect();
 
         assert.equal(typeof stats, 'object');
         assert.equal(typeof stats.memory, 'object');
-        assert.ok(stats.memory.limit > 0);
-        assert.ok(stats.memory.total > 0);
-        assert.ok(stats.memory.used > 0);
+
+        assert.ok(stats.memory.limit > 0, 'limit should be greater than 0');
+        assert.ok(stats.memory.total > 0, 'total should be greater than 0');
+        assert.ok(stats.memory.used > 0, 'used should be greater than 0');
 
         done();
       }).load(fixture.console).start();

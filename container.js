@@ -334,8 +334,13 @@ Container.prototype.start = function start() {
     //
     if (!doc.open || !self.i) return;
 
+    //
+    // We need to open and close the iframe in order for it to trigger an onload
+    // event. Certain scripts might require in order to execute properly.
+    //
     doc.open();
-    doc.write('<!doctype html><html></html>');
+    doc.write('<!doctype html>');
+
     self.eval(self.image.toString(), function evil() {
       /* @TODO: handle error argument */
     });
