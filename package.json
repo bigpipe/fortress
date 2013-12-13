@@ -6,7 +6,8 @@
   "scripts": {
     "test": "zuul -- test.js",
     "local": "zuul --local 1337 -- test.js",
-    "build": "browserify index.js --standalone Fortress -o ./dist/fortress.js"
+    "build": "browserify index.js --standalone Fortress -o ./dist/fortress.js",
+    "phantomjs": "./phantomjs"
   },
   "keywords": [
     "sandbox",
@@ -29,18 +30,26 @@
     "pre-commit": "0.0.4",
     "mocha": "~1.14.0",
     "zuul": "~1.0.4",
-    "browserify": "~3.0.0"
+    "browserify": "~3.0.0",
+    "mocha-phantomjs": "~3.2.0"
   },
   "dependencies": {
     "eventemitter3": "0.0.1"
   },
   "testling": {
     "browsers": {
-      "ff": [ 12, 13 ],
-      "chrome": [ 20 ],
-      "safari": [ 5.1 ]
+      "ff": [
+        12,
+        13
+      ],
+      "chrome": [
+        20
+      ],
+      "safari": [
+        5.1
+      ]
     },
-    "harness" : "mocha",
+    "harness": "mocha",
     "files": "test/*.js"
   }
 }
