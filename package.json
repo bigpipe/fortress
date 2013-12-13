@@ -50,6 +50,6 @@
       ]
     },
     "harness": "mocha",
-    "files": "test/*.js"
+    "files": "test.js"
   }
 }
