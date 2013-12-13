@@ -33,5 +33,14 @@
   },
   "dependencies": {
     "eventemitter3": "0.0.1"
+  },
+  "testling": {
+    "browsers": {
+      "ff": [ 12, 13 ],
+      "chrome": [ 20 ],
+      "safari": [ 5.1 ]
+    },
+    "harness" : "mocha",
+    "files": "test/*.js"
   }
 }
