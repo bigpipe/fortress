@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * Create a new pre-configured iframe.
  *
@@ -12,9 +14,7 @@
  * @return {Object}
  * @api private
  */
-function iframe(el, id, options) {
-  'use strict';
-
+module.exports = function iframe(el, id, options) {
   var i;
 
   options = options || {};
@@ -126,6 +126,4 @@ function iframe(el, id, options) {
      */
     frame: i
   };
-}
-
-module.exports = iframe;
+};
