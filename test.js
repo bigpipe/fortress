@@ -287,7 +287,12 @@ describe('Container', function () {
       }
     });
 
-    if (typeof performance === 'undefined' || !performance.memory) return;
+    if (
+         typeof performance === 'undefined'
+      || !performance.memory
+      || performance.memory.usedJSHeapSize === 0
+    ) return;
+
     it('returns the memory of the VM when the browser supports it', function (done) {
       container.on('start', function () {
         var stats = container.inspect();
