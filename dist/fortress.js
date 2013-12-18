@@ -2,9 +2,9 @@
 'use strict';
 
 var EventEmitter = require('eventemitter3')
+  , BaseImage = require('./image')
   , slice = Array.prototype.slice
-  , iframe = require('./iframe')
-  , BaseImage = require('./image');
+  , iframe = require('frames');
 
 /**
  * Representation of a single container.
@@ -35,6 +35,7 @@ function Container(mount, id, code, options) {
   this.i = iframe(mount, id);         // The generated iframe.
   this.mount = mount;                 // Mount point of the container.
   this.console = [];                  // Historic console.* output.
+  this.setTimeout = {};               // Stores our setTimeout references.
   this.id = id;                       // Unique id.
   this.readyState = Container.CLOSED; // The readyState of the container.
 
@@ -42,7 +43,7 @@ function Container(mount, id, code, options) {
   this.started = null;                // Start EPOCH.
 
   this.retries = 'retries' in options // How many times should we reload
-    ? +options.reties || 3
+    ? +options.retries || 3
     : 3;
 
   this.timeout = 'timeout' in options // Ping timeout before we reboot.
@@ -64,6 +65,7 @@ function Container(mount, id, code, options) {
 // The container inherits from the EventEmitter3.
 //
 Container.prototype = new EventEmitter();
+Container.prototype.constructor = Container;
 
 /**
  * Internal readyStates for the container.
@@ -82,17 +84,18 @@ Container.OPEN    = 4;
  * @api private
  */
 Container.prototype.ping = function ping() {
-  if (this.pong) clearTimeout(this.pong);
+  if (this.setTimeout.pong) clearTimeout(this.setTimeout.pong);
 
-  this.pong = setTimeout(this.bound(
-    this.onmessage,
-    {
-      type: "error",
-      scope: "iframe.timeout",
+  var self = this;
+  this.setTimeout.pong = setTimeout(function pong() {
+    self.onmessage({
+      type: 'error',
+      scope: 'iframe.timeout',
       args: [
-        new Error('the iframe is no longer responding with ping packets')
+        'the iframe is no longer responding with ping packets'
       ]
-  }), this.timeout);
+    });
+  }, this.timeout);
 
   return this;
 };
@@ -120,6 +123,7 @@ Container.prototype.retry = function retry() {
     // No more attempts left.
     //
     case 0:
+      this.stop();
       this.emit('end');
     return;
 
@@ -145,21 +149,25 @@ Container.prototype.retry = function retry() {
  * @api public
  */
 Container.prototype.inspect = function inspect() {
-  var memory;
+  if (!this.i.attached()) return {};
+
+  var date = new Date()
+    , memory;
 
   //
   // Try to read out the `performance` information from the iframe.
   //
-  if (this.i.window && this.i.window.performance) {
-    memory = this.i.window.performance.memory;
+  if (this.i.window() && this.i.window().performance) {
+    memory = this.i.window().performance.memory;
   }
 
   memory = memory || {};
 
   return {
-    state: this.readyState,
-    uptime: +new Date() - this.started,
-    attached: !!document.getElementById(this.id),
+    readyState: this.readyState,
+    retries: this.retries,
+    uptime: this.started ? (+date) - this.started : 0,
+    date: date,
     memory: {
       limit: memory.jsHeapSizeLimit || 0,
       total: memory.totalJSHeapSize || 0,
@@ -168,25 +176,6 @@ Container.prototype.inspect = function inspect() {
   };
 };
 
-/**
- * Bind, without the .bind. This ensures that callbacks and functions are called
- * with the correct context.
- *
- * @param {Function} method The method that we should bind to.
- * @param {Mixed} context The context of the method, default to `this`
- * @returns {Function} Function that calls the method with the given context.
- * @api private
- */
-Container.prototype.bound = function bound(method, context) {
-  method = method || function noop() {};  // default to noop.
-  context = context || this;              // default to `this`.
-
-  var args = slice.call(arguments, 2);
-
-  return function binded() {
-    return method.apply(context, args.concat(slice.call(arguments, 0)));
-  };
-};
 
 /**
  * Parse and process incoming messages from the iframe. The incoming messages
@@ -203,20 +192,22 @@ Container.prototype.onmessage = function onmessage(packet) {
   if ('object' !== typeof packet) return false;
   if (!('type' in packet)) return false;
 
+  packet.args = packet.args || [];
+
   switch (packet.type) {
     //
     // The code in the iframe used the `console` method.
     //
     case 'console':
       this.console.push({
-        method: packet.method,
+        scope: packet.scope,
         epoch: +new Date(),
         args: packet.args
       });
 
       if (packet.attach) {
-        this.emit.apply(this, ['attach::'+ packet.method].concat(packet.args));
-        this.emit.apply(this, ['attach'].concat(packet.args));
+        this.emit.apply(this, ['attach::'+ packet.scope].concat(packet.args));
+        this.emit.apply(this, ['attach', packet.scope].concat(packet.args));
       }
     break;
 
@@ -224,7 +215,10 @@ Container.prototype.onmessage = function onmessage(packet) {
     // An error happened in the iframe, process it.
     //
     case 'error':
-      this.emit('error', new Error(packet.args[0]));
+      var failure = packet.args[0].stack ? packet.args[0] : new Error(packet.args[0]);
+      failure.scope = packet.scope || 'generic';
+
+      this.emit('error', failure);
       this.retry();
     break;
 
@@ -232,16 +226,20 @@ Container.prototype.onmessage = function onmessage(packet) {
     // The iframe and it's code has been loaded.
     //
     case 'load':
-      this.readyState = Container.OPEN;
-      this.emit('start');
+      if (this.readyState !== Container.OPEN) {
+        this.readyState = Container.OPEN;
+        this.emit('start');
+      }
     break;
 
     //
     // The iframe is unloading, attaching
     //
     case 'unload':
-      this.readyState = Container.CLOSED;
-      this.emit('stop');
+      if (this.readyState !== Container.CLOSED) {
+        this.readyState = Container.CLOSED;
+        this.emit('stop');
+      }
     break;
 
     //
@@ -250,6 +248,7 @@ Container.prototype.onmessage = function onmessage(packet) {
     //
     case 'ping':
       this.ping();
+      this.emit('ping');
     break;
 
     //
@@ -257,8 +256,8 @@ Container.prototype.onmessage = function onmessage(packet) {
     // it as an `regular` message.
     //
     default:
-      this.emit('message', packet.data);
-      return false;
+      this.emit.apply(this, ['message'].concat(packet.args));
+    return false;
   }
 
   return true;
@@ -272,26 +271,15 @@ Container.prototype.onmessage = function onmessage(packet) {
  * @api public
  */
 Container.prototype.eval = function evil(cmd, fn) {
+  var data;
+
   try {
-    this.i.window.eval(cmd);
+    data = this.i.add().window().eval(cmd);
   } catch (e) {
     return fn(e);
   }
 
-  return fn();
-};
-
-/**
- * Error handling.
- *
- * @returns {Boolean}
- * @api private
- */
-Container.prototype.onerror = function onerror() {
-  var a = slice.call(arguments, 0);
-  this.onmessage({ type: 'error', scope: 'iframe.onerror', args: a });
-
-  return true;
+  return fn(undefined, data);
 };
 
 /**
@@ -303,37 +291,65 @@ Container.prototype.onerror = function onerror() {
 Container.prototype.start = function start() {
   this.readyState = Container.OPENING;
 
-  //
-  // Attach various event listeners so we can update the state of the container.
-  // We don't need to use `.addEventLister` as we only want and require one
-  // single event listener.
-  //
-  this.i.window.onerror = this.bound(this.onerror);
+  var self = this;
 
-  //
-  // If the container is already in the HTML we're going to assume that we still
-  // have to load it with the Image. But if it's not in the mount point (DOM) we
-  // assume that the iframe has been removed to release memory and what ever,
-  // but when we re-add it to the mount point, it will automatically restart the
-  // JavaScript that was originally loaded in the container.
-  //
-  if (!document.getElementById(this.id)) {
-    this.mount.appendChild(this.i.frame);
-    this.i.window[this.id] = this.bound(this.onmessage);
-  } else {
-    this.i.window[this.id] = this.bound(this.onmessage);
-
-    var doc = this.i.document;
-    doc.open();
-    doc.write('<!doctype html><html><s'+'cript>'+ this.image +'</s'+'cript></html>');
-    doc.close();
+  /**
+   * Simple argument proxy.
+   *
+   * @api private
+   */
+  function onmessage() {
+    self.onmessage.apply(self, arguments);
   }
 
   //
-  // Introduce a custom variable in to the iframe that exposes our Container as
-  // API. The Image can use this to communicate with the container and pass
-  // messages back and forth.
+  // Code loading is an sync process, but this COULD cause huge stack traces
+  // and really odd feedback loops in the stack trace. So we deliberately want
+  // to destroy the stack trace here.
   //
+  this.setTimeout.start = setTimeout(function async() {
+    var doc = self.i.document();
+
+    //
+    // No doc.open, the iframe has already been destroyed!
+    //
+    if (!doc.open || !self.i) return;
+
+    //
+    // We need to open and close the iframe in order for it to trigger an onload
+    // event. Certain scripts might require in order to execute properly.
+    //
+    doc.open();
+    doc.write('<!doctype html>'); // Smallest, valid HTML5 document possible.
+
+    //
+    // Introduce our messaging variable, this needs to be done before we eval
+    // our code. If we set this value before the setTimeout, it doesn't work in
+    // Opera due to reasons.
+    //
+    self.i.window()[self.id] = onmessage;
+    self.eval(self.image.toString(), function evil(err) {
+      if (err) return self.onmessage({
+        type: 'error',
+        scope: 'iframe.eval',
+        args: [ err ]
+      });
+    });
+
+    //
+    // If executing the code results to an error we could actually be stopping
+    // and removing the iframe from the source before we're able to close it.
+    // This is because executing the code inside the iframe is actually an sync
+    // operation.
+    //
+    if (doc.close) doc.close();
+  }, 0);
+
+  //
+  // We can only write to the iframe if it's actually in the DOM. The `i.add()`
+  // method ensures that the iframe is added to the DOM.
+  //
+  this.i.add();
   this.started = +new Date();
 
   return this;
@@ -346,20 +362,32 @@ Container.prototype.start = function start() {
  * @api private
  */
 Container.prototype.stop = function stop() {
-  if (!document.getElementById(this.id)) return this;
+  if (this.readyState !== Container.CLOSED && this.readyState !== Container.CLOSING) {
+    this.readyState = Container.CLOSING;
+  }
 
-  this.readyState = Container.CLOSING;
-  this.mount.removeChild(this.i.frame);
+  this.i.remove();
 
-  try { this.i.window.onerror = null; }
-  catch (e) { /* Known to throw errors in certain situations (IE) */ }
+  //
+  // Opera doesn't support unload events. So adding an listener inside the
+  // iframe for `unload` doesn't work. This is the only way around it.
+  //
+  this.onmessage({ type: 'unload' });
 
   //
   // It's super important that this removed AFTER we've cleaned up all other
   // references as we might need to communicate back to our container when we
   // are unloading or when an `unload` event causes an error.
   //
-  this.i.window[this.id] = null;
+  this.i.window()[this.id] = null;
+
+  //
+  // Clear the timeouts.
+  //
+  for (var timeout in this.setTimeout) {
+    clearTimeout(this.setTimeout[timeout]);
+    delete this.setTimeout[timeout];
+  }
 
   return this;
 };
@@ -385,12 +413,15 @@ Container.prototype.load = function load(code) {
  * @api private
  */
 Container.prototype.destroy = function destroy() {
+  if (!this.i) return this;
   this.stop();
 
   //
   // Remove all possible references to release as much memory as possible.
   //
   this.mount = this.image = this.id = this.i = this.created = null;
+  this.console.length = 0;
+
   this.removeAllListeners();
 
   return this;
@@ -401,75 +432,7 @@ Container.prototype.destroy = function destroy() {
 //
 module.exports = Container;
 
-},{"./iframe":2,"./image":3,"eventemitter3":6}],2:[function(require,module,exports){
-/**
- * Create a new pre-configured iframe.
- *
- * Options:
- *
- * visible: (boolean) Don't hide the iframe by default.
- * sandbox: (array) Sandbox properties.
- *
- * @param {Element} el DOM element where the iframe should be added on.
- * @param {String} id A unique name/id for the iframe.
- * @param {String} options Options.
- * @return {Object}
- * @api private
- */
-function iframe(el, id, options) {
-  'use strict';
-
-  options = options || {};
-  var i;
-
-  try {
-    //
-    // Internet Explorer 6/7 require a unique name attribute in order to work.
-    // In addition to that, dynamic name attributes cannot be added using
-    // `i.name` as it will just ignore it. Creating it using this oddly <iframe>
-    // element fixes these issues.
-    //
-    i = document.createElement('<iframe name="'+ id +'">');
-  } catch (e) {
-    i = document.createElement('iframe');
-    i.name = id;
-  }
-
-  //
-  // The iframe needs to be added in to the DOM before we can modify it, make
-  // sure it's remains unseen.
-  //
-  if (!options.visible) {
-    i.style.top = i.style.left = -10000;
-    i.style.position = 'absolute';
-    i.style.display = 'none';
-  }
-
-  i.setAttribute('frameBorder', 0);
-  i.setAttribute('sandbox', (options.sandbox || [
-    'allow-pointer-lock',
-    'allow-same-origin',
-    'allow-scripts',
-    'allow-popups',
-    'allow-forms'
-  ]).join(' '));
-  i.id = id;
-
-  //
-  // Insert before first child to avoid `Operation Aborted` error in IE6.
-  //
-  el.insertBefore(i, el.firstChild);
-
-  return {
-    document: i.contentDocument || i.contentWindow.document,
-    window: i.contentWindow || i.contentDocument.parentWindow,
-    frame: i
-  };
-}
-
-module.exports = iframe;
-
-},{}],3:[function(require,module,exports){
+},{"./image":2,"eventemitter3":5,"frames":6}],2:[function(require,module,exports){
 'use strict';
 
 /**
@@ -511,6 +474,14 @@ BaseImage.prototype.toString = function toString() {
  */
 BaseImage.prototype.transform = function transform() {
   var code = ('('+ (function fort(global) {
+    //
+    // When you toString a function which is created while in strict mode,
+    // firefox will add "use strict"; to the body of the function. Chrome leaves
+    // the source intact. Knowing this, we cannot blindly assume that we can
+    // inject code after the first opening bracked `{`.
+    //
+    this.fort();
+
     /**
      * Simple helper function to do nothing.
      *
@@ -528,10 +499,10 @@ BaseImage.prototype.transform = function transform() {
      * @api private
      */
     function on(thing, evt, fn) {
-      if (thing.addEventListener) {
-        thing.addEventListener(evt, fn, false);
-      } else if (on.attachEvent) {
+      if (thing.attachEvent) {
         thing.attachEvent('on'+ evt, fn);
+      } else if (thing.addEventListener) {
+        thing.addEventListener(evt, fn, false);
       }
 
       return { on: on };
@@ -540,12 +511,14 @@ BaseImage.prototype.transform = function transform() {
     //
     // Force the same domain as our 'root' script.
     //
-    document.domain = '_fortress_domain_';
+    try { document.domain = '_fortress_domain_'; }
+    catch (e) { /* FireFox 26 throws an Security error for this as we use eval */ }
 
     //
     // Prevent common iframe detection scripts that do frame busting.
     //
-    global.top = global.self = global.parent = global;
+    try { global.top = global.self = global.parent = global; }
+    catch (e) { /* Damn, read-only */ }
 
     //
     // Add a error listener. Adding it on the iframe it self doesn't make it
@@ -635,12 +608,9 @@ BaseImage.prototype.transform = function transform() {
     }, 1000);
 
     //
-    // Add load and unload listeners so we know when the iframe is alive and
-    // dead.
+    // Add load listeners so we know when the iframe is alive and working.
     //
-    on(global, 'unload', function unload() {
-      this._fortress_id_({ type: 'unload' });
-    }).on(global, 'load', function () {
+    on(global, 'load', function () {
       this._fortress_id_({ type: 'load' });
     });
 
@@ -649,37 +619,33 @@ BaseImage.prototype.transform = function transform() {
     // bootstrapping has been loaded completely. But the problem is that we
     // actually cause full browser crashes in chrome when we execute this.
     //
-    try { this.fort(); }
-    catch (e) { this._fortress_id_({ type: 'error', scope: 'iframe.start', args: [e] }); }
+    var self = this;
+    setTimeout(function timeout() {
+      try { self.fort(); }
+      catch (e) {
+        this._fortress_id_({ type: 'error', scope: 'iframe.start', args: [e] });
+      }
+    }, 0);
   })+').call({}, this)');
 
   //
   // Replace our "template tags" with the actual content.
   //
-  code = code
+  return code
     .replace(/_fortress_domain_/g, document.domain)
-    .replace(/this\._fortress_id_/g, this.id);
-
-  //
-  // Add the source on the first line so the stack traces that are returned from
-  // errors still have the correct line numbers. By doing an indexOf on the
-  // source we can get the first opening bracket and append the source to it.
-  //
-  var curly = code.indexOf('{') + 1;
-  return code.slice(0, curly)
-    + 'this.fort=function fort() {'+ this.source +'};'
-    + code.slice(curly);
+    .replace(/this\._fortress_id_/g, this.id)
+    .replace(/this\.fort\(\);/g, 'this.fort=function fort() {'+ this.source +'};');
 };
 
 module.exports = BaseImage;
 
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 'use strict';
 
 var EventEmitter = require('eventemitter3')
   , Container = require('./container')
   , BaseImage = require('./image')
-  , iframe = require('./iframe');
+  , iframe = require('frames');
 
 /**
  * Fortress: Container and Image management for front-end code.
@@ -738,30 +704,32 @@ catch (e) {}
  * @api private
  */
 Fortress.prototype.globals = function globals(old) {
-  var i = iframe(this.mount, Date.now())
-    , global = this.global;
+  var i = iframe(this.mount, +new Date())
+    , windoh = i.add().window()
+    , global = this.global
+    , result = [];
 
-  this.mount.removeChild(i.frame);
+  i.remove();
 
   //
   // Detect the globals and return them.
   //
-  return Object.keys(global).filter(function filter(key) {
-    var introduced = !(key in i.window);
+  for (var key in global) {
+    var introduced = !(key in windoh);
 
     //
     // We've been given an array, so we should use that as the source of previous
     // and acknowledged leaks and only return an array that contains newly
     // introduced leaks.
     //
-    if (introduced && old && old.length) {
-      return ~old.indexOf(key)
-      ? false
-      : true;
-    }
+    if (introduced) {
+      if (old && old.length && !!~old.indexOf(key)) continue;
 
-    return introduced;
-  });
+      result.push(key);
+    }
+  }
+
+  return result;
 };
 
 /**
@@ -1014,9 +982,9 @@ Fortress.Image = BaseImage;
 //
 module.exports = Fortress;
 
-},{"./container":1,"./iframe":2,"./image":3,"eventemitter3":6,"fs":5}],5:[function(require,module,exports){
+},{"./container":1,"./image":2,"eventemitter3":5,"frames":6,"fs":4}],4:[function(require,module,exports){
 
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 
 /**
@@ -1195,7 +1163,138 @@ EventEmitter.EventEmitter3 = EventEmitter;
 try { module.exports = EventEmitter; }
 catch (e) {}
 
-},{}]},{},[4])
-(4)
+},{}],6:[function(require,module,exports){
+'use strict';
+
+/**
+ * Create a new pre-configured iframe.
+ *
+ * Options:
+ *
+ * visible: (boolean) Don't hide the iframe by default.
+ * sandbox: (array) Sandbox properties.
+ *
+ * @param {Element} el DOM element where the iframe should be added on.
+ * @param {String} id A unique name/id for the iframe.
+ * @param {String} options Options.
+ * @return {Object}
+ * @api private
+ */
+module.exports = function iframe(el, id, options) {
+  var i;
+
+  options = options || {};
+  options.sandbox = options.sandbox || [
+    'allow-pointer-lock',
+    'allow-same-origin',
+    'allow-scripts',
+    'allow-popups',
+    'allow-forms'
+  ];
+
+  try {
+    //
+    // Internet Explorer 6/7 require a unique name attribute in order to work.
+    // In addition to that, dynamic name attributes cannot be added using
+    // `i.name` as it will just ignore it. Creating it using this oddly <iframe>
+    // element fixes these issues.
+    //
+    i = document.createElement('<iframe name="'+ id +'">');
+  } catch (e) {
+    i = document.createElement('iframe');
+    i.name = id;
+  }
+
+  //
+  // The iframe needs to be added in to the DOM before we can modify it, make
+  // sure it's remains unseen.
+  //
+  if (!options.visible) {
+    i.style.top = i.style.left = -10000;
+    i.style.position = 'absolute';
+    i.style.display = 'none';
+  }
+
+  i.setAttribute('frameBorder', 0);
+
+  if (options.sandbox.length) {
+    i.setAttribute('sandbox', (options.sandbox).join(' '));
+  }
+
+  i.id = id;
+
+  return {
+    /**
+     * Return the document which we can use to inject or modify the HTML.
+     *
+     * @returns {Document}
+     * @api public
+     */
+    document: function doc() {
+      return this.window().document;
+    },
+
+    /**
+     * Return the global or the window from the iframe.
+     *
+     * @returns {Window}
+     * @api public
+     */
+    window: function win() {
+      return i.contentWindow || (i.contentDocument
+        ? i.contentDocument.parentWindow || {}
+        : {}
+      );
+    },
+
+    /**
+     * Add the iframe to the DOM, use insertBefore first child to avoid
+     * `Operation Aborted` error in IE6.
+     *
+     * @api public
+     */
+    add: function add() {
+      if (!this.attached()) {
+        el.insertBefore(i, el.firstChild);
+      }
+
+      return this;
+    },
+
+    /**
+     * Remove the iframe from the DOM.
+     *
+     * @api public
+     */
+    remove: function remove() {
+      if (this.attached()) {
+        el.removeChild(i);
+      }
+
+      return this;
+    },
+
+    /**
+     * Checks if the iframe is currently attached to the DOM.
+     *
+     * @returns {Boolean} The container is attached to the mount point.
+     * @api private
+     */
+    attached: function attached() {
+      return !!document.getElementById(id);
+    },
+
+    /**
+     * Reference to the iframe element.
+     *
+     * @type {HTMLIFRAMEElement}
+     * @public
+     */
+    frame: i
+  };
+};
+
+},{}]},{},[3])
+(3)
 });
 ;
