@@ -1,9 +1,9 @@
 'use strict';
 
 var EventEmitter = require('eventemitter3')
+  , BaseImage = require('./image')
   , slice = Array.prototype.slice
-  , iframe = require('./iframe')
-  , BaseImage = require('./image');
+  , iframe = require('frames');
 
 /**
  * Representation of a single container.

@@ -3,7 +3,7 @@
 var EventEmitter = require('eventemitter3')
   , Container = require('./container')
   , BaseImage = require('./image')
-  , iframe = require('./iframe');
+  , iframe = require('frames');
 
 /**
  * Fortress: Container and Image management for front-end code.
