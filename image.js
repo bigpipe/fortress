@@ -64,10 +64,10 @@ BaseImage.prototype.transform = function transform() {
      * @api private
      */
     function on(thing, evt, fn) {
-      if (thing.addEventListener) {
-        thing.addEventListener(evt, fn, false);
-      } else if (on.attachEvent) {
+      if (thing.attachEvent) {
         thing.attachEvent('on'+ evt, fn);
+      } else if (thing.addEventListener) {
+        thing.addEventListener(evt, fn, false);
       }
 
       return { on: on };
