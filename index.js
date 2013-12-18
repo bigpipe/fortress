@@ -62,16 +62,17 @@ catch (e) {}
  * @api private
  */
 Fortress.prototype.globals = function globals(old) {
-  var i = iframe(this.mount, Date.now())
+  var i = iframe(this.mount, +new Date())
     , windoh = i.add().window()
-    , global = this.global;
+    , global = this.global
+    , result = [];
 
   i.remove();
 
   //
   // Detect the globals and return them.
   //
-  return Object.keys(global).filter(function filter(key) {
+  for (var key in global) {
     var introduced = !(key in windoh);
 
     //
@@ -79,14 +80,14 @@ Fortress.prototype.globals = function globals(old) {
     // and acknowledged leaks and only return an array that contains newly
     // introduced leaks.
     //
-    if (introduced && old && old.length) {
-      return ~old.indexOf(key)
-      ? false
-      : true;
-    }
+    if (introduced) {
+      if (old && old.length && !!~old.indexOf(key)) continue;
 
-    return introduced;
-  });
+      result.push(key);
+    }
+  }
+
+  return result;
 };
 
 /**
