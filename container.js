@@ -64,6 +64,7 @@ function Container(mount, id, code, options) {
 // The container inherits from the EventEmitter3.
 //
 Container.prototype = new EventEmitter();
+Container.prototype.constructor = Container;
 
 /**
  * Internal readyStates for the container.
