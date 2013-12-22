@@ -35,15 +35,6 @@ describe('Fortress', function () {
     assert.equal(typeof Fortress, 'function');
   });
 
-  it('exposes the Container', function () {
-    assert.equal(typeof Fortress.Container, 'function');
-  });
-
-  it('exposes the Image', function () {
-    assert.equal(typeof Fortress.Image, 'function');
-    assert.ok(Fortress.Image !== Image);
-  });
-
   it('inherits from EventEmitter3', function () {
     assert.ok(fort instanceof EventEmitter);
   });
@@ -146,6 +137,13 @@ describe('Container', function () {
 
   beforeEach(function () {
     container = new Container(document.body, 'test_'+ id++);
+    container.on('error', function (err) {
+      if (typeof console !== 'undefined') {
+        console.log('('+ container.id +') error:', err.message, err.scope, err);
+      } else {
+        alert('error: '+ err.message +', scope:'+ err.scope);
+      }
+    });
   });
 
   afterEach(function () {
@@ -470,29 +468,5 @@ describe('Image', function () {
   it('stores the source', function () {
     var image = new Images('dingdong', source);
     assert.equal(image.source, source);
-  });
-});
-
-describe('Code execution', function () {
-  return;
-
-  var container
-    , id = 0;
-
-  beforeEach(function () {
-    container = new Container(document.body, 'test_'+ id++);
-  });
-
-  afterEach(function () {
-    container.destroy();
-  });
-
-  it('breaks prevents recursive code crashes using iframe timeout', function (done) {
-    container.once('error', function (err) {
-      assert.ok(!!err.scope, 'it has a scope');
-      done();
-    });
-
-    container.load(fixture.recursive).start();
   });
 });

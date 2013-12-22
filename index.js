@@ -1,8 +1,7 @@
 'use strict';
 
-var EventEmitter = require('eventemitter3')
-  , Container = require('./container')
-  , BaseImage = require('./image')
+var Container = require('containerization')
+  , EventEmitter = require('eventemitter3')
   , iframe = require('frames');
 
 /**
@@ -27,7 +26,7 @@ function Fortress(options) {
 
   append.parentNode.insertBefore(div, append);
 
-  this.global = (function () { return this; })() || window;
+  this.global = (function global() { return this; })() || window;
   this.containers = {};
   this.mount = div;
 
@@ -40,18 +39,7 @@ function Fortress(options) {
 // Fortress inherits from EventEmitter3.
 //
 Fortress.prototype = new EventEmitter();
-
-/**
- * Detect HTMLfile support in Internet Explorer. This might be used for more
- * advanced sand boxing in IE.
- *
- * @type {Boolean}
- * @api private
- */
-Fortress.prototype.htmlfile = false;
-
-try { Fortress.prototype.htmlfile = !!new ActiveXObject('htmlfile'); }
-catch (e) {}
+Fortress.prototype.constructor = Fortress;
 
 /**
  * Detect the current globals that are loaded in to this page. This way we can
@@ -62,7 +50,7 @@ catch (e) {}
  * @api private
  */
 Fortress.prototype.globals = function globals(old) {
-  var i = iframe(this.mount, +new Date())
+  var i = iframe(this.mount, 'iframe_'+ (+new Date()))
     , windoh = i.add().window()
     , global = this.global
     , result = [];
@@ -328,12 +316,6 @@ Fortress.stringify = function stringify(code, transfer) {
 
   return transfer ? JSON.stringify(code) : code;
 };
-
-//
-// Expose our Container and Image so it can be extended by third party.
-//
-Fortress.Container = Container;
-Fortress.Image = BaseImage;
 
 //
 // Expose the module.

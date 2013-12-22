@@ -34,8 +34,9 @@
     "mocha-phantomjs": "~3.2.0"
   },
   "dependencies": {
-    "eventemitter3": "0.0.1",
-    "frames": "0.0.0"
+    "eventemitter3": "0.0.x",
+    "frames": "0.0.x",
+    "containerization": "0.0.x"
   },
   "testling": {
     "browsers": [
