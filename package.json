@@ -24,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git://github.com/3rd-Eden/fortress.git"
+    "url": "git://github.com/bigpipe/fortress.git"
   },
   "devDependencies": {
     "pre-commit": "0.0.x",
@@ -34,7 +34,7 @@
     "mocha-phantomjs": "3.2.x"
   },
   "dependencies": {
-    "eventemitter3": "0.0.x",
+    "eventemitter3": "0.1.x",
     "frames": "0.0.x",
     "containerization": "0.0.x"
   },
