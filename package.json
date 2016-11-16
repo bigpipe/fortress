@@ -27,14 +27,14 @@
     "url": "git://github.com/bigpipe/fortress.git"
   },
   "devDependencies": {
-    "pre-commit": "0.0.x",
-    "mocha": "1.14.x",
-    "zuul": "1.0.x",
-    "browserify": "3.0.x",
-    "mocha-phantomjs": "3.2.x"
+    "pre-commit": "~1.1.3",
+    "mocha": "~3.1.2",
+    "zuul": "~3.11.1",
+    "browserify": "~13.1.1",
+    "mocha-phantomjs": "~4.1.0"
   },
   "dependencies": {
-    "eventemitter3": "0.1.x",
+    "eventemitter3": "~2.0.2",
     "frames": "0.0.x",
     "containerization": "0.0.x"
   },
